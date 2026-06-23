@@ -35,6 +35,7 @@ export const store = new Store({
   detail: 'standard',
   currentProject: null,
   projects: [],
+  exports: [],
   currentTerrain: null,
   bounds: null,
   center: null,

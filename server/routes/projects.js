@@ -28,6 +28,22 @@ function serializeMessage(row) {
 }
 
 export default async function (fastify) {
+  // Global export history for user
+  fastify.get('/exports', { onRequest: [fastify.authenticate] }, async (req) => {
+    const db = getDb();
+    const rows = db
+      .prepare('SELECT * FROM exports WHERE user_id = ? ORDER BY created_at DESC LIMIT 100')
+      .all(req.user.userId);
+    return rows.map((row) => ({
+      id: row.id,
+      projectId: row.project_id,
+      format: row.format,
+      filename: row.filename,
+      sizeBytes: row.size_bytes,
+      createdAt: row.created_at,
+    }));
+  });
+
   // List projects
   fastify.get('/', { onRequest: [fastify.authenticate] }, async (req) => {
     const db = getDb();
@@ -151,6 +167,27 @@ export default async function (fastify) {
       .run(req.params.id, req.user.userId);
     if (result.changes === 0) throw new AppError('Project not found', 404, 'NOT_FOUND');
     return { ok: true };
+  });
+
+  // Export history for a project
+  fastify.get('/:id/exports', { onRequest: [fastify.authenticate] }, async (req) => {
+    const db = getDb();
+    const project = db
+      .prepare('SELECT id FROM projects WHERE id = ? AND user_id = ?')
+      .get(req.params.id, req.user.userId);
+    if (!project) throw new AppError('Project not found', 404, 'NOT_FOUND');
+
+    const rows = db
+      .prepare('SELECT * FROM exports WHERE project_id = ? ORDER BY created_at DESC')
+      .all(project.id);
+
+    return rows.map((row) => ({
+      id: row.id,
+      format: row.format,
+      filename: row.filename,
+      sizeBytes: row.size_bytes,
+      createdAt: row.created_at,
+    }));
   });
 
   // Add message
