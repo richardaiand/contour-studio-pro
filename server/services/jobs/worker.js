@@ -1,4 +1,6 @@
 import { setTimeout } from 'timers/promises';
+import { getDb } from '../../db.js';
+import { now } from '../../utils/index.js';
 import { claimPendingJob, updateJob } from './db.js';
 import { fetchDemForBounds, selectSourceDescription } from '../dem/router.js';
 import { gridToMesh } from '../terrain/mesh.js';
@@ -13,11 +15,26 @@ let running = false;
 export function startWorker() {
   if (running) return;
   running = true;
+  resetStuckJobs();
   console.log('Starting async job worker');
   loop().catch((err) => {
     console.error('Job worker crashed:', err);
     running = false;
   });
+}
+
+function resetStuckJobs() {
+  try {
+    const db = getDb();
+    const result = db.prepare(
+      `UPDATE jobs SET status = 'pending', progress = 0, updated_at = ? WHERE status = 'running'`
+    ).run(now());
+    if (result.changes > 0) {
+      console.log(`Reset ${result.changes} stuck job(s) to pending`);
+    }
+  } catch (err) {
+    console.error('Failed to reset stuck jobs:', err);
+  }
 }
 
 export function stopWorker() {
