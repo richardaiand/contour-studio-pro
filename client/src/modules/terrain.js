@@ -109,7 +109,8 @@ async function exportTerrain(format) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] || `${filename}.${format}`;
+    const ext = format === 'heightmap' ? 'png' : format;
+    a.download = res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] || `${filename}.${ext}`;
     document.body.appendChild(a);
     a.click();
     a.remove();

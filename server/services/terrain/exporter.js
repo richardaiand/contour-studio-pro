@@ -1,3 +1,4 @@
+import { PNG } from 'pngjs';
 import { sanitizeFilename } from '../../utils/index.js';
 
 export function exportMesh(mesh, format, nameRoot = 'terrain') {
@@ -55,7 +56,6 @@ function toAsciiStl(mesh) {
     const i1 = indices[i + 1] * 3;
     const i2 = indices[i + 2] * 3;
 
-    // Use averaged face normal
     const nx = (normals[i0] + normals[i1] + normals[i2]) / 3;
     const ny = (normals[i0 + 1] + normals[i1 + 1] + normals[i2 + 1]) / 3;
     const nz = (normals[i0 + 2] + normals[i1 + 2] + normals[i2 + 2]) / 3;
@@ -74,33 +74,29 @@ function toAsciiStl(mesh) {
 }
 
 function toHeightmapPng(mesh) {
-  const { width, height, minElevation, maxElevation } = mesh;
-  const size = width * height;
-  const rgba = Buffer.alloc(size * 4);
+  const { width, height, minElevation, maxElevation, grid } = mesh;
+
+  if (!grid || grid.length === 0) {
+    throw new Error('Mesh is missing elevation grid for heightmap export');
+  }
+
+  const png = new PNG({ width, height, filterType: -1 });
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      const idx = y * width + x;
-      const elevation = mesh.grid[y][x];
+      const idx = (y * width + x) * 4;
+      const elevation = grid[y][x];
       const t = maxElevation > minElevation
         ? (elevation - minElevation) / (maxElevation - minElevation)
-        : 0;
       const gray = Math.round(clamp(t, 0, 1) * 255);
-      const offset = idx * 4;
-      rgba[offset] = gray;
-      rgba[offset + 1] = gray;
-      rgba[offset + 2] = gray;
-      rgba[offset + 3] = 255;
+      png.data[idx] = gray;
+      png.data[idx + 1] = gray;
+      png.data[idx + 2] = gray;
+      png.data[idx + 3] = 255;
     }
   }
 
-  // Return raw PNG bytes (caller should use a PNG library for proper encoding)
-  return {
-    width,
-    height,
-    rgba,
-    note: 'Raw RGBA heightmap; encode to PNG before serving',
-  };
+  return PNG.sync.write(png);
 }
 
 function clamp(value, min, max) {

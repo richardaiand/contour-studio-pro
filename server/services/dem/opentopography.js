@@ -1,5 +1,6 @@
 import { config } from '../../config.js';
 import { AppError } from '../../errors.js';
+import { parseGeoTiff, resampleGrid } from './geotiff.js';
 
 const ENDPOINT = 'https://portal.opentopography.org/API/globaldem';
 const DATASETS = {
@@ -29,16 +30,26 @@ export async function fetchDem(bounds, detail) {
     throw new AppError(`OpenTopography error ${res.status}: ${text.slice(0, 200)}`, 502, 'DEM_ERROR');
   }
 
-  // OpenTopography returns a GeoTIFF blob. For the MVP, we can't parse GeoTIFF
-  // without a library, so we return metadata and fall back to Open-Meteo grid.
-  // In production, use geotiff.js or GDAL to read the raster.
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('geotiff') && !contentType.includes('tif')) {
+    const text = await res.text().catch(() => '');
+    throw new AppError(`OpenTopography returned non-GeoTIFF response: ${text.slice(0, 200)}`, 502, 'DEM_ERROR');
+  }
+
+  const arrayBuffer = await res.arrayBuffer();
+  const { width, height, grid } = await parseGeoTiff(arrayBuffer);
+
+  // OpenTopography SRTM resolution: GL1 ≈ 30m, GL3 ≈ 90m
+  const nominalResolution = dataset === 'SRTMGL1' ? 30 : 90;
+  const targetSize = Math.min(detail.meshSize, detail.maxSamples);
+  const finalGrid = resampleGrid(grid, targetSize, targetSize);
+
   return {
-    width: detail.meshSize,
-    height: detail.meshSize,
-    grid: [], // placeholder
-    resolutionMeters: dataset === 'SRTMGL1' ? 30 : 90,
+    width: targetSize,
+    height: targetSize,
+    grid: finalGrid,
+    resolutionMeters: nominalResolution,
     source: 'opentopography',
     attribution: `Elevation data by OpenTopography (${dataset})`,
-    note: 'GeoTIFF returned; full raster parsing to be implemented with geotiff.js',
   };
 }

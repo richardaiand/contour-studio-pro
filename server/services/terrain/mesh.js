@@ -62,6 +62,7 @@ export function gridToMesh(grid, bounds, options = {}) {
   return {
     width,
     height,
+    grid,
     positions,
     normals,
     uvs,

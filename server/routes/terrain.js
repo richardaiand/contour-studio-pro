@@ -72,7 +72,7 @@ export default async function (fastify) {
         required: ['mesh', 'format'],
         properties: {
           mesh: { type: 'object' },
-          format: { type: 'string', enum: ['obj', 'stl'] },
+          format: { type: 'string', enum: ['obj', 'stl', 'heightmap'] },
           filename: { type: 'string' },
         },
       },
