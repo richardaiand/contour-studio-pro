@@ -38,5 +38,8 @@ export async function parseGeoTiff(arrayBuffer) {
     grid.push(row);
   }
 
+  // GeoTIFF row 0 is usually north; our mesh expects row 0 to be south (minLat).
+  grid.reverse();
+
   return { width, height, grid, noData };
 }
