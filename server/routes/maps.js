@@ -6,7 +6,7 @@ const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 
 export default async function (fastify) {
   fastify.post('/analyze', {
-    preHandler: fastify.authenticate,
+    onRequest: [fastify.authenticate],
   }, async (req) => {
     const data = await req.file();
     if (!data) {

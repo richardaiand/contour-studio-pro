@@ -4,7 +4,7 @@ import { AppError } from '../errors.js';
 export default async function (fastify) {
   // Create a terrain generation job
   fastify.post('/terrain', {
-    preHandler: fastify.authenticate,
+    onRequest: [fastify.authenticate],
     schema: {
       body: {
         type: 'object',
@@ -43,7 +43,7 @@ export default async function (fastify) {
 
   // Get job status and result
   fastify.get('/:id', {
-    preHandler: fastify.authenticate,
+    onRequest: [fastify.authenticate],
   }, async (req) => {
     const job = getJob(req.params.id);
     if (!job || job.userId !== req.user.id) {
@@ -54,7 +54,7 @@ export default async function (fastify) {
 
   // List user's jobs
   fastify.get('/', {
-    preHandler: fastify.authenticate,
+    onRequest: [fastify.authenticate],
   }, async (req) => {
     return listJobsForUser(req.user.id);
   });
