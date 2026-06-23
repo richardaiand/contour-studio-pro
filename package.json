@@ -1,0 +1,38 @@
+{
+  "name": "contour-studio",
+  "version": "0.1.0",
+  "description": "AI-powered 3D terrain visualization from addresses, DEMs, and topographic maps",
+  "private": true,
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "node --watch server/index.js",
+    "dev:client": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "migrate": "node server/db.js migrate",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.0",
+    "@fastify/cors": "^10.0.0",
+    "@fastify/helmet": "^13.0.0",
+    "@fastify/rate-limit": "10.0.0",
+    "@fastify/static": "^8.0.0",
+    "argon2": "^0.41.0",
+    "better-sqlite3": "^12.0.0",
+    "dotenv": "^16.4.0",
+    "fastify": "^5.0.0",
+    "fastify-plugin": "^5.0.0",
+    "jsonwebtoken": "^9.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "vite": "^6.0.0"
+  }
+}

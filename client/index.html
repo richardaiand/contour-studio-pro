@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contour Studio · AI Terrain to 3D</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E⛰️%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.css" />
+  <link rel="stylesheet" href="/src/style.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/": "https://cdn.jsdelivr.net/npm/three@0.160.0/",
+      "maplibre-gl": "https://unpkg.com/maplibre-gl@5.0.0/dist/maplibre-gl.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <header class="app-header">
+      <div class="brand">
+        <span class="logo">⛰️</span>
+        <div>
+          <strong>Contour Studio</strong>
+          <small>AI terrain · 3D site models</small>
+        </div>
+      </div>
+      <div class="spacer"></div>
+      <div class="header-actions">
+        <button id="themeBtn" class="ghost" title="Toggle theme">🌙</button>
+        <button id="settingsBtn" class="ghost">Settings</button>
+        <button id="authBtn" class="ghost">Sign in</button>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <aside class="sidebar">
+        <div class="panel">
+          <h2>Location</h2>
+          <div class="input-group">
+            <input id="addressInput" type="text" placeholder="Enter an address or place..." />
+            <button id="searchBtn" class="primary">Search</button>
+          </div>
+          <div class="detail-selector">
+            <label>Detail</label>
+            <div class="segmented" id="detailSelector">
+              <button data-value="draft">Draft</button>
+              <button data-value="standard" class="active">Standard</button>
+              <button data-value="survey">Survey</button>
+            </div>
+          </div>
+          <button id="generateBtn" class="primary full" disabled>Generate Terrain</button>
+          <div id="status" class="status"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Upload Map</h2>
+          <p class="hint">Upload a topographic map to analyze contours.</p>
+          <input id="mapUpload" type="file" accept="image/*,.pdf" />
+          <button id="analyzeBtn" class="secondary full" disabled>Analyze Map</button>
+        </div>
+
+        <div class="panel">
+          <h2>Projects</h2>
+          <button id="newProjectBtn" class="sm primary">+ New</button>
+          <div id="projectList" class="project-list">
+            <div class="hint">Sign in to save projects.</div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="viewport">
+        <div id="map" class="map-view"></div>
+        <canvas id="scene" class="scene-view"></canvas>
+
+        <div class="viewport-hud">
+          <div id="stats" class="stats">No terrain</div>
+          <div class="exports">
+            <input id="filename" value="terrain" placeholder="filename" />
+            <button data-export="obj" disabled>OBJ</button>
+            <button data-export="stl" disabled>STL</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="authDlg">
+    <h3>Account</h3>
+    <p class="sub">Server-side accounts. Your password is hashed with Argon2id.</p>
+    <label>Username</label>
+    <input id="authUser" autocomplete="off" placeholder="username" />
+    <label>Password</label>
+    <input id="authPass" type="password" autocomplete="off" placeholder="password" />
+    <div id="authError" class="error-text"></div>
+    <div class="dlg-actions">
+      <button id="authCancel" class="ghost">Cancel</button>
+      <button id="authSignUp" class="ghost">Create account</button>
+      <button id="authSignIn" class="primary">Sign in</button>
+    </div>
+  </dialog>
+
+  <dialog id="settingsDlg">
+    <h3>AI Provider</h3>
+    <p class="sub">Your key is encrypted on the server. It is never sent to the browser in full.</p>
+    <label>Endpoint</label>
+    <input id="endpoint" placeholder="https://api.aiand.com/v1" />
+    <label>Model</label>
+    <input id="model" placeholder="deepseek-ai/deepseek-v4-pro" />
+    <label>API key</label>
+    <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+    <div id="providerPresets" class="presets"></div>
+    <div class="dlg-actions">
+      <button id="cancelSettings" class="ghost">Cancel</button>
+      <button id="saveSettings" class="primary">Save</button>
+    </div>
+  </dialog>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
