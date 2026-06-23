@@ -3,8 +3,9 @@ import { AppError } from '../../errors.js';
 const ENDPOINT = 'https://api.open-meteo.com/v1/elevation';
 
 export async function fetchElevation(bounds, detail) {
-  // Build a grid of sample points
-  const samples = Math.min(detail.meshSize, detail.maxSamples);
+  // Build a grid of sample points. Open-Meteo accepts up to 100 locations per request,
+  // so we cap the grid to keep request count reasonable.
+  const samples = Math.min(48, detail.meshSize, detail.maxSamples);
   const points = [];
 
   for (let y = 0; y < samples; y++) {
