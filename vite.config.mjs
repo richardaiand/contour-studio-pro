@@ -8,9 +8,6 @@ export default defineConfig(({ mode }) => ({
     outDir: '../dist/client',
     emptyOutDir: true,
     sourcemap: mode !== 'production',
-    rollupOptions: {
-      external: ['maplibre-gl'],
-    },
   },
   server: {
     port: 5173,
