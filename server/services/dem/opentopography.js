@@ -6,7 +6,7 @@ const ENDPOINT = 'https://portal.opentopography.org/API/globaldem';
 const DATASETS = {
   draft: 'SRTMGL3',
   standard: 'SRTMGL1',
-  survey: 'SRTMGL1',
+  survey: 'USGS1m',
 };
 
 export async function fetchDem(bounds, detail) {
