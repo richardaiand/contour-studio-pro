@@ -79,10 +79,32 @@ function renderProjectList(projects, currentProject) {
   projects.forEach((p) => {
     const item = document.createElement('div');
     item.className = 'project-item' + (currentProject?.id === p.id ? ' active' : '');
-    item.innerHTML = `<span>${escapeHtml(p.title)}</span>`;
-    item.addEventListener('click', () => selectProject(p));
+    item.innerHTML = `
+      <span>${escapeHtml(p.title)}</span>
+      <button class="ghost sm delete-project" data-id="${p.id}" title="Delete">×</button>
+    `;
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.delete-project')) {
+        e.stopPropagation();
+        deleteProject(p);
+      } else {
+        selectProject(p);
+      }
+    });
     list.appendChild(item);
   });
+}
+
+async function deleteProject(project) {
+  if (!confirm(`Delete "${project.title}"?`)) return;
+  try {
+    await api(`/projects/${project.id}`, { method: 'DELETE' });
+    const projects = store.get('projects').filter((p) => p.id !== project.id);
+    store.set({ projects, currentProject: null });
+    setStatus('Project deleted.', 'ok');
+  } catch (e) {
+    setStatus('Failed to delete project: ' + e.message, 'error');
+  }
 }
 
 function renderExportList(exports = []) {
