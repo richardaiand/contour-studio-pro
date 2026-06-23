@@ -25,7 +25,16 @@ export async function fetchElevation(bounds, detail) {
     const url = new URL(ENDPOINT);
     url.searchParams.set('locations', chunk.join('|'));
 
-    const res = await fetch(url);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    let res;
+    try {
+      res = await fetch(url, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+
     if (!res.ok) {
       throw new AppError(`Open-Meteo error: ${res.status}`, 502, 'DEM_ERROR');
     }

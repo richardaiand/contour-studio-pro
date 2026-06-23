@@ -24,7 +24,16 @@ export async function fetchDem(bounds, detail) {
   url.searchParams.set('outputFormat', 'GTiff');
   url.searchParams.set('API_Key', config.dem.openTopographyKey);
 
-  const res = await fetch(url);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60000);
+
+  let res;
+  try {
+    res = await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new AppError(`OpenTopography error ${res.status}: ${text.slice(0, 200)}`, 502, 'DEM_ERROR');
