@@ -249,7 +249,7 @@ export function setMarker(center, updateStore = true, shouldZoom = true) {
 function proportionalPadding() {
   const canvas = map.getCanvas();
   const minDim = Math.min(canvas.clientWidth, canvas.clientHeight);
-  return Math.round(minDim * 0.2);
+  return Math.round(minDim * 0.25);
 }
 
 function createRotationHandle(center, sizeMeters, rotation) {
