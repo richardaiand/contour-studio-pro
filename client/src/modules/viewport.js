@@ -32,6 +32,9 @@ export function initViewport() {
   scene.add(dir2);
 
   gridHelper = new THREE.GridHelper(1000, 40);
+  gridHelper.material.fog = false;
+  gridHelper.material.transparent = true;
+  gridHelper.material.opacity = 0.35;
   scene.add(gridHelper);
 
   applyThemeColors();
