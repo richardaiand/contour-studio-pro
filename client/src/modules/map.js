@@ -53,6 +53,8 @@ export function initMap() {
     console.warn('Map image missing:', e.id);
   });
 
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+
   map.on('load', () => {
     map.addSource('selection', {
       type: 'geojson',
