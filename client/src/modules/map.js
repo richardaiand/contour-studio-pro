@@ -179,7 +179,18 @@ export function setMarker(center, updateStore = true) {
   });
 
   updateSelection(center, updateStore);
-  map.flyTo({ center: [center.lon, center.lat], zoom: Math.max(map.getZoom(), fitZoomForSize()) });
+
+  // Fit the map to the selection bounds with padding so the surrounding area stays visible.
+  const bounds = store.get('bounds');
+  if (bounds) {
+    map.fitBounds(
+      [
+        [bounds.minLon, bounds.minLat],
+        [bounds.maxLon, bounds.maxLat],
+      ],
+      { padding: 80, maxZoom: 17, duration: 600 }
+    );
+  }
 }
 
 export function getAreaInputs() {
@@ -241,15 +252,6 @@ export function formatSizeLabel() {
   const meters = sizeMetersFromInputs();
   if (unit === 'acre') return `${value} acres (${Math.round(meters)} m side)`;
   return `${value} ${unit} × ${value} ${unit}`;
-}
-
-function fitZoomForSize() {
-  const meters = sizeMetersFromInputs();
-  if (meters <= 100) return 17;
-  if (meters <= 500) return 15;
-  if (meters <= 1000) return 14;
-  if (meters <= 5000) return 13;
-  return 12;
 }
 
 function updateSelection(center, updateStore = true) {
