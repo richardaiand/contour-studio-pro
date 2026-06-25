@@ -1,7 +1,7 @@
 import { $, api } from '../utils.js';
 import { store, setStatus } from '../store/index.js';
 import { setTerrain, getTerrainMesh } from './viewport.js';
-import { computeBounds, getCenter } from './map.js';
+import { computeBounds, getCenter, sizeMetersFromInputs, getAreaInputs, formatSizeLabel } from './map.js';
 import { loadProjects } from './projects.js';
 
 let suggestionIndex = -1;
@@ -24,18 +24,22 @@ export function initTerrain() {
     });
   });
 
-  // Area size selector
-  const areaSize = $('areaSize');
-  if (areaSize) {
-    areaSize.addEventListener('change', () => {
-      const center = store.get('center') || getCenter();
-      if (center) {
-        const sizeMeters = Number(areaSize.value);
-        const bounds = computeBounds(center, sizeMeters);
-        store.set({ sizeMeters, bounds });
-      }
-    });
-  }
+  // Area size / unit / rotation inputs
+  const updateArea = () => {
+    const center = store.get('center') || getCenter();
+    if (center) {
+      const sizeMeters = sizeMetersFromInputs();
+      const inputs = getAreaInputs();
+      const bounds = computeBounds(center, sizeMeters);
+      store.set({ sizeMeters, bounds, rotation: inputs.rotation });
+    }
+    const rotationLabel = $('rotationValue');
+    if (rotationLabel) rotationLabel.textContent = `${$('areaRotation').value}°`;
+  };
+
+  $('areaValue')?.addEventListener('input', updateArea);
+  $('areaUnit')?.addEventListener('change', updateArea);
+  $('areaRotation')?.addEventListener('input', updateArea);
 
   // Exports
   document.querySelectorAll('.exports button').forEach((btn) => {
@@ -184,6 +188,11 @@ async function generateTerrain() {
     return;
   }
 
+  if (!store.get('user')) {
+    setStatus('Sign in to generate terrain.', 'error');
+    return;
+  }
+
   store.set({ isGenerating: true });
     setStatus('Queueing terrain generation…', '');
     setProgress(0, true);
@@ -203,9 +212,8 @@ async function generateTerrain() {
     setTerrain(data.mesh);
     updateStats(data);
     setProgress(100, false);
-    const size = store.get('sizeMeters') || 1000;
-    const sizeLabel = size < 1000 ? `${size} m` : size === 1000 ? '1 km' : '1 mile';
-    setStatus(`${data.sourceDescription || 'Terrain'} · ${sizeLabel}² · ${data.resolutionMeters}m resolution`, 'ok');
+    const sizeLabel = formatSizeLabel();
+    setStatus(`${data.sourceDescription || 'Terrain'} · ${sizeLabel} · ${data.resolutionMeters}m resolution`, 'ok');
     loadProjects();
   } catch (e) {
     setProgress(0, false);
@@ -299,10 +307,9 @@ async function analyzeMapUpload(e) {
 function updateStats(data) {
   const stats = $('stats');
   const range = (data.maxElevation - data.minElevation).toFixed(1);
-  const size = store.get('sizeMeters') || 1000;
-  const sizeLabel = size < 1000 ? `${size} m` : size === 1000 ? '1 km' : '1 mile';
+  const sizeLabel = formatSizeLabel();
   stats.innerHTML = `
-    <b>${sizeLabel} × ${sizeLabel}</b> area ·
+    <b>${sizeLabel}</b> area ·
     <b>${data.mesh.width} × ${data.mesh.height}</b> vertices ·
     <b>${range}</b> m range ·
     <b>${data.verticalExaggeration}×</b> vertical exaggeration

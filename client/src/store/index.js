@@ -40,6 +40,7 @@ export const store = new Store({
   bounds: null,
   center: null,
   sizeMeters: 1000,
+  rotation: 0,
   isGenerating: false,
   status: '',
   statusKind: '',

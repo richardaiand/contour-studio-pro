@@ -168,6 +168,32 @@ html, body {
   background: var(--bg);
 }
 
+.area-inputs {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.area-inputs select {
+  width: auto;
+  min-width: 90px;
+}
+
+.rotation-inputs {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.rotation-inputs span {
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 36px;
+  text-align: right;
+}
+
 .map-marker {
   width: 28px;
   height: 28px;

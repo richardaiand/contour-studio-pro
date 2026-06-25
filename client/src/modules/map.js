@@ -7,6 +7,10 @@ let map;
 let marker;
 let isDraggingMarker = false;
 
+const METERS_PER_DEGREE_LAT = 111320;
+const MAX_SIZE_METERS = 10000;
+const MIN_SIZE_METERS = 10;
+
 export function initMap() {
   map = new maplibregl.Map({
     container: 'map',
@@ -126,37 +130,73 @@ export function setMarker(center, updateStore = true) {
   map.flyTo({ center: [center.lon, center.lat], zoom: Math.max(map.getZoom(), fitZoomForSize()) });
 }
 
-function getSizeMeters() {
-  const value = $('areaSize')?.value;
-  const meters = value ? Number(value) : 1000;
-  return Number.isFinite(meters) && meters > 0 ? meters : 1000;
+export function getAreaInputs() {
+  const value = parseFloat($('areaValue')?.value);
+  const unit = $('areaUnit')?.value || 'km';
+  const rotation = parseFloat($('areaRotation')?.value) || 0;
+  return { value: Number.isFinite(value) ? value : 1, unit, rotation };
 }
 
-function getSizeLabel() {
-  const option = $('areaSize')?.selectedOptions?.[0];
-  return option?.dataset?.label || `${getSizeMeters()} m × ${getSizeMeters()} m`;
+export function sizeMetersFromInputs(inputs = getAreaInputs()) {
+  const { value, unit } = inputs;
+  if (value <= 0) return 1000;
+
+  let meters;
+  switch (unit) {
+    case 'm':
+      meters = value;
+      break;
+    case 'km':
+      meters = value * 1000;
+      break;
+    case 'ft':
+      meters = value * 0.3048;
+      break;
+    case 'mi':
+      meters = value * 1609.344;
+      break;
+    case 'acre':
+      // Treat acre as a square area; side length = sqrt(area)
+      meters = Math.sqrt(value * 4046.85642);
+      break;
+    default:
+      meters = value * 1000;
+  }
+
+  return Math.max(MIN_SIZE_METERS, Math.min(MAX_SIZE_METERS, meters));
+}
+
+export function formatSizeLabel() {
+  const { value, unit } = getAreaInputs();
+  const meters = sizeMetersFromInputs();
+  if (unit === 'acre') return `${value} acres (${Math.round(meters)} m side)`;
+  return `${value} ${unit} × ${value} ${unit}`;
 }
 
 function fitZoomForSize() {
-  const meters = getSizeMeters();
+  const meters = sizeMetersFromInputs();
   if (meters <= 100) return 17;
   if (meters <= 500) return 15;
   if (meters <= 1000) return 14;
+  if (meters <= 5000) return 13;
   return 12;
 }
 
 function updateSelection(center, updateStore = true) {
-  const sizeMeters = getSizeMeters();
-  const bounds = computeBounds(center, sizeMeters);
+  const sizeMeters = sizeMetersFromInputs();
+  const rotation = parseFloat($('areaRotation')?.value) || 0;
+  const polygon = rotatedSquare(center, sizeMeters, rotation);
+  const bounds = boundsFromPolygon(polygon);
+
   if (updateStore) {
-    store.set({ center, bounds, sizeMeters });
+    store.set({ center, bounds, sizeMeters, rotation });
   }
-  updateSelectionLayer(bounds);
+  updateSelectionLayer(polygon);
 }
 
-function updateSelectionLayer(bounds) {
+function updateSelectionLayer(polygon) {
   if (!map || !map.getSource('selection')) return;
-  map.getSource('selection').setData(polygonFromBounds(bounds));
+  map.getSource('selection').setData(polygon);
 }
 
 function emptyPolygon() {
@@ -183,6 +223,59 @@ function polygonFromBounds(bounds) {
   };
 }
 
+function rotatedSquare(center, sizeMeters, rotationDegrees) {
+  const half = sizeMeters / 2;
+  const rotation = (rotationDegrees * Math.PI) / 180;
+  const cosR = Math.cos(rotation);
+  const sinR = Math.sin(rotation);
+
+  // Convert half side from meters to degrees
+  const latDelta = half / METERS_PER_DEGREE_LAT;
+  const lonDelta = half / (METERS_PER_DEGREE_LAT * Math.cos((center.lat * Math.PI) / 180));
+
+  // Unrotated corners relative to center
+  const corners = [
+    { x: -lonDelta, y: -latDelta },
+    { x: lonDelta, y: -latDelta },
+    { x: lonDelta, y: latDelta },
+    { x: -lonDelta, y: latDelta },
+  ];
+
+  const rotated = corners.map(({ x, y }) => ({
+    lon: center.lon + x * cosR - y * sinR,
+    lat: center.lat + x * sinR + y * cosR,
+  }));
+
+  // Close the polygon
+  rotated.push(rotated[0]);
+
+  return {
+    type: 'Feature',
+    geometry: {
+      type: 'Polygon',
+      coordinates: [rotated.map((p) => [p.lon, p.lat])],
+    },
+    properties: {},
+  };
+}
+
+function boundsFromPolygon(polygon) {
+  const coords = polygon.geometry.coordinates[0];
+  let minLon = Infinity;
+  let maxLon = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+
+  for (const [lon, lat] of coords) {
+    minLon = Math.min(minLon, lon);
+    maxLon = Math.max(maxLon, lon);
+    minLat = Math.min(minLat, lat);
+    maxLat = Math.max(maxLat, lat);
+  }
+
+  return { minLon, maxLon, minLat, maxLat };
+}
+
 async function reverseGeocode(lat, lon) {
   try {
     const res = await fetch(`/api/geocode/reverse?lat=${lat}&lon=${lon}`);
@@ -205,7 +298,8 @@ export function setBounds(bounds) {
     ],
     { padding: 40 }
   );
-  updateSelectionLayer(bounds);
+  const center = { lat: (bounds.minLat + bounds.maxLat) / 2, lon: (bounds.minLon + bounds.maxLon) / 2 };
+  updateSelection(center, false);
 }
 
 export function getCenter() {
@@ -213,8 +307,8 @@ export function getCenter() {
 }
 
 export function computeBounds(center, sizeMeters = 1000) {
-  const latDelta = sizeMeters / 111320;
-  const lonDelta = sizeMeters / (111320 * Math.cos((center.lat * Math.PI) / 180));
+  const latDelta = sizeMeters / METERS_PER_DEGREE_LAT;
+  const lonDelta = sizeMeters / (METERS_PER_DEGREE_LAT * Math.cos((center.lat * Math.PI) / 180));
   return {
     minLon: center.lon - lonDelta / 2,
     maxLon: center.lon + lonDelta / 2,

@@ -47,13 +47,23 @@
           </div>
           <div class="detail-selector">
             <label>Area</label>
-            <select id="areaSize" class="full">
-              <option value="64" data-label="1 acre (~64 m)">1 acre</option>
-              <option value="100" data-label="100 m × 100 m">100 m</option>
-              <option value="500" data-label="500 m × 500 m">500 m</option>
-              <option value="1000" selected data-label="1 km × 1 km">1 km</option>
-              <option value="1609" data-label="1 mile × 1 mile">1 mile</option>
-            </select>
+            <div class="area-inputs">
+              <input id="areaValue" type="number" min="1" step="any" value="1" />
+              <select id="areaUnit">
+                <option value="km">km</option>
+                <option value="m">m</option>
+                <option value="mi">miles</option>
+                <option value="ft">ft</option>
+                <option value="acre">acres</option>
+              </select>
+            </div>
+          </div>
+          <div class="detail-selector">
+            <label>Rotation</label>
+            <div class="rotation-inputs">
+              <input id="areaRotation" type="range" min="0" max="360" step="1" value="0" />
+              <span id="rotationValue">0°</span>
+            </div>
           </div>
           <button id="generateBtn" class="primary full" disabled>Generate Terrain</button>
           <div id="progressBar" class="progress-bar" style="display:none;">
