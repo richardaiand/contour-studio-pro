@@ -1,7 +1,7 @@
 import { $, api } from '../utils.js';
 import { store, setStatus } from '../store/index.js';
 import { setTerrain, getTerrainMesh } from './viewport.js';
-import { computeBounds, getCenter, sizeMetersFromInputs, getAreaInputs, formatSizeLabel, unitLimits } from './map.js';
+import { computeBounds, getCenter, getMapCenter, sizeMetersFromInputs, getAreaInputs, formatSizeLabel, unitLimits } from './map.js';
 import { loadProjects } from './projects.js';
 
 let suggestionIndex = -1;
@@ -13,6 +13,7 @@ export function initTerrain() {
   $('addressInput').addEventListener('input', debounce(handleAddressInput, 250));
 
   $('generateBtn').addEventListener('click', generateTerrain);
+  $('dropCenterBtn').addEventListener('click', dropCenter);
 
   // Detail selector
   const detailBtns = document.querySelectorAll('#detailSelector button');
@@ -196,6 +197,15 @@ function debounce(fn, ms) {
     clearTimeout(t);
     t = setTimeout(() => fn(...args), ms);
   };
+}
+
+function dropCenter() {
+  const center = getMapCenter();
+  if (!center) return;
+  const sizeMeters = sizeMetersFromInputs();
+  const bounds = computeBounds(center, sizeMeters);
+  store.set({ center, bounds, sizeMeters });
+  setStatus('Center dropped at current map view.', 'ok');
 }
 
 async function generateTerrain() {

@@ -510,6 +510,12 @@ export function getCenter() {
   return marker ? { lat: marker.getLngLat().lat, lon: marker.getLngLat().lng } : null;
 }
 
+export function getMapCenter() {
+  if (!map) return null;
+  const c = map.getCenter();
+  return { lat: c.lat, lon: c.lng };
+}
+
 export function computeBounds(center, sizeMeters = 1000) {
   const latDelta = sizeMeters / METERS_PER_DEGREE_LAT;
   const lonDelta = sizeMeters / (METERS_PER_DEGREE_LAT * Math.cos((center.lat * Math.PI) / 180));
