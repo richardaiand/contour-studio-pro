@@ -6,6 +6,9 @@ import { store } from '../store/index.js';
 let map;
 let marker;
 let isDraggingMarker = false;
+let isDraggingBox = false;
+let boxDragStart = null;
+let ignoreNextClick = false;
 
 const METERS_PER_DEGREE_LAT = 111320;
 const MAX_SIZE_METERS = 10000;
@@ -78,8 +81,55 @@ export function initMap() {
     });
   });
 
+  map.on('mousedown', 'selection-fill', (e) => {
+    if (isDraggingMarker || isDraggingBox) return;
+    isDraggingBox = true;
+    boxDragStart = {
+      lngLat: e.lngLat,
+      center: store.get('center') || { lat: e.lngLat.lat, lon: e.lngLat.lng },
+    };
+    map.getCanvas().style.cursor = 'grabbing';
+    map.dragPan.disable();
+  });
+
+  map.on('mousemove', (e) => {
+    if (!isDraggingBox) return;
+    const deltaLng = e.lngLat.lng - boxDragStart.lngLat.lng;
+    const deltaLat = e.lngLat.lat - boxDragStart.lngLat.lat;
+    const newCenter = {
+      lat: boxDragStart.center.lat + deltaLat,
+      lon: boxDragStart.center.lon + deltaLng,
+    };
+    if (marker) marker.setLngLat([newCenter.lon, newCenter.lat]);
+    updateSelection(newCenter, true);
+  });
+
+  map.on('mouseup', () => {
+    if (!isDraggingBox) return;
+    isDraggingBox = false;
+    boxDragStart = null;
+    ignoreNextClick = true;
+    map.getCanvas().style.cursor = '';
+    map.dragPan.enable();
+    setTimeout(() => {
+      ignoreNextClick = false;
+    }, 100);
+  });
+
+  map.on('mouseenter', 'selection-fill', () => {
+    if (!isDraggingBox && !isDraggingMarker) {
+      map.getCanvas().style.cursor = 'grab';
+    }
+  });
+
+  map.on('mouseleave', 'selection-fill', () => {
+    if (!isDraggingBox && !isDraggingMarker) {
+      map.getCanvas().style.cursor = '';
+    }
+  });
+
   map.on('click', (e) => {
-    if (isDraggingMarker) return;
+    if (isDraggingMarker || ignoreNextClick) return;
     const { lng, lat } = e.lngLat;
     setMarker({ lat, lon: lng });
     reverseGeocode(lat, lng);
