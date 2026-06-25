@@ -36,7 +36,7 @@ export default fp(async function (fastify) {
         scriptSrc: ["'self'", "'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'blob:', 'https://tile.openstreetmap.org', 'https://*.openfreemap.org', 'https://*.cartocdn.com', 'https://server.arcgisonline.com', 'https://*.opentopomap.org'],
-        connectSrc: ["'self'", 'https://api.openai.com', 'https://api.aiand.com', 'https://api.anthropic.com', 'https://openrouter.ai', 'https://nominatim.openstreetmap.org', 'https://portal.opentopography.org', 'https://*.nationalmap.gov', 'https://api.open-meteo.com'],
+        connectSrc: ["'self'", 'https://api.openai.com', 'https://api.aiand.com', 'https://api.anthropic.com', 'https://openrouter.ai', 'https://nominatim.openstreetmap.org', 'https://photon.komoot.io', 'https://portal.opentopography.org', 'https://*.nationalmap.gov', 'https://api.open-meteo.com'],
         workerSrc: ["'self'", 'blob:'],
         frameSrc: ["'self'", 'blob:'],
         fontSrc: ["'self'"],
