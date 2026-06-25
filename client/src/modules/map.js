@@ -19,7 +19,11 @@ export function initMap() {
       sources: {
         osm: {
           type: 'raster',
-          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+          tiles: [
+            'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          ],
           tileSize: 256,
           attribution: '© OpenStreetMap contributors',
         },
@@ -36,6 +40,14 @@ export function initMap() {
     },
     center: [-98.5795, 39.8283],
     zoom: 3,
+  });
+
+  map.on('error', (e) => {
+    console.error('Map error:', e.error);
+  });
+
+  map.on('styleimagemissing', (e) => {
+    console.warn('Map image missing:', e.id);
   });
 
   map.on('load', () => {
