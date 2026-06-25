@@ -29,12 +29,9 @@ export function initTerrain() {
     const center = store.get('center') || getCenter();
     if (center) {
       const sizeMeters = sizeMetersFromInputs();
-      const inputs = getAreaInputs();
       const bounds = computeBounds(center, sizeMeters);
-      store.set({ sizeMeters, bounds, rotation: inputs.rotation });
+      store.set({ sizeMeters, bounds });
     }
-    const rotationLabel = $('rotationValue');
-    if (rotationLabel) rotationLabel.textContent = `${$('areaRotation').value}°`;
   };
 
   const updateUnitLimits = () => {
@@ -58,7 +55,6 @@ export function initTerrain() {
     updateUnitLimits();
     updateArea();
   });
-  $('areaRotation')?.addEventListener('input', updateArea);
 
   updateUnitLimits();
 

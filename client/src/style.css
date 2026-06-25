@@ -180,20 +180,6 @@ html, body {
   min-width: 90px;
 }
 
-.rotation-inputs {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
-  align-items: center;
-}
-
-.rotation-inputs span {
-  font-size: 12px;
-  color: var(--muted);
-  min-width: 36px;
-  text-align: right;
-}
-
 .model-select {
   display: flex;
   flex-direction: column;
@@ -232,6 +218,20 @@ html, body {
 
 .maplibregl-canvas-container .maplibregl-canvas {
   outline: none;
+}
+
+.rotation-handle {
+  width: 18px;
+  height: 18px;
+  background: #3b82f6;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+}
+
+.rotation-handle:active {
+  cursor: grabbing;
 }
 
 input,

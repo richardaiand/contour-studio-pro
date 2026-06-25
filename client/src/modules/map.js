@@ -5,14 +5,18 @@ import { store } from '../store/index.js';
 
 let map;
 let marker;
+let rotationHandle;
 let isDraggingMarker = false;
 let isDraggingBox = false;
+let isRotating = false;
 let boxDragStart = null;
+let rotateStart = null;
 let ignoreNextClick = false;
 
 const METERS_PER_DEGREE_LAT = 111320;
 const MAX_SIZE_METERS = 10000;
 const MIN_SIZE_METERS = 10;
+const HANDLE_DISTANCE_METERS = 40;
 
 export function initMap() {
   map = new maplibregl.Map({
@@ -47,6 +51,8 @@ export function initMap() {
     touchZoomRotate: true,
   });
 
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+
   map.on('error', (e) => {
     console.error('Map error:', e.error);
   });
@@ -54,8 +60,6 @@ export function initMap() {
   map.on('styleimagemissing', (e) => {
     console.warn('Map image missing:', e.id);
   });
-
-  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
   map.on('load', () => {
     map.addSource('selection', {
@@ -85,8 +89,9 @@ export function initMap() {
     });
   });
 
+  // Drag the selection box
   map.on('mousedown', 'selection-fill', (e) => {
-    if (isDraggingMarker || isDraggingBox) return;
+    if (isDraggingMarker || isDraggingBox || isRotating) return;
     isDraggingBox = true;
     boxDragStart = {
       lngLat: e.lngLat,
@@ -97,56 +102,80 @@ export function initMap() {
   });
 
   map.on('mousemove', (e) => {
-    if (!isDraggingBox) return;
-    const deltaLng = e.lngLat.lng - boxDragStart.lngLat.lng;
-    const deltaLat = e.lngLat.lat - boxDragStart.lngLat.lat;
-    const newCenter = {
-      lat: boxDragStart.center.lat + deltaLat,
-      lon: boxDragStart.center.lon + deltaLng,
-    };
-    if (marker) marker.setLngLat([newCenter.lon, newCenter.lat]);
-    updateSelection(newCenter, true);
+    if (isDraggingBox) {
+      const deltaLng = e.lngLat.lng - boxDragStart.lngLat.lng;
+      const deltaLat = e.lngLat.lat - boxDragStart.lngLat.lat;
+      const newCenter = {
+        lat: boxDragStart.center.lat + deltaLat,
+        lon: boxDragStart.center.lon + deltaLng,
+      };
+      if (marker) marker.setLngLat([newCenter.lon, newCenter.lat]);
+      updateSelection(newCenter, true, false);
+      return;
+    }
+
+    if (isRotating) {
+      const center = store.get('center');
+      if (!center) return;
+      const local = lonLatToLocalMeters(center, e.lngLat.lat, e.lngLat.lng);
+      const angle = Math.atan2(local.dy, local.dx);
+      // Handle sits at -90° (top) in local coords; subtract that so dragging the handle sets rotation.
+      const rotation = ((angle * 180) / Math.PI + 90 + 360) % 360;
+      setRotation(rotation);
+      return;
+    }
   });
 
   map.on('mouseup', () => {
-    if (!isDraggingBox) return;
-    isDraggingBox = false;
-    boxDragStart = null;
-    ignoreNextClick = true;
-    map.getCanvas().style.cursor = '';
-    map.dragPan.enable();
-    setTimeout(() => {
-      ignoreNextClick = false;
-    }, 100);
+    if (isDraggingBox) {
+      isDraggingBox = false;
+      boxDragStart = null;
+      ignoreNextClick = true;
+      map.getCanvas().style.cursor = '';
+      map.dragPan.enable();
+      setTimeout(() => {
+        ignoreNextClick = false;
+      }, 100);
+      return;
+    }
+
+    if (isRotating) {
+      isRotating = false;
+      ignoreNextClick = true;
+      if (rotationHandle) rotationHandle.getElement().style.cursor = 'grab';
+      setTimeout(() => {
+        ignoreNextClick = false;
+      }, 100);
+    }
   });
 
   map.on('mouseenter', 'selection-fill', () => {
-    if (!isDraggingBox && !isDraggingMarker) {
+    if (!isDraggingBox && !isDraggingMarker && !isRotating) {
       map.getCanvas().style.cursor = 'grab';
     }
   });
 
   map.on('mouseleave', 'selection-fill', () => {
-    if (!isDraggingBox && !isDraggingMarker) {
+    if (!isDraggingBox && !isDraggingMarker && !isRotating) {
       map.getCanvas().style.cursor = '';
     }
   });
 
   map.on('click', (e) => {
-    if (isDraggingMarker || ignoreNextClick) return;
+    if (isDraggingMarker || ignoreNextClick || isDraggingBox || isRotating) return;
     const { lng, lat } = e.lngLat;
     setMarker({ lat, lon: lng });
     reverseGeocode(lat, lng);
   });
 
   store.subscribe((state) => {
-    if (state.center) {
+    if (state.center && !isDraggingBox && !isRotating) {
       const current = marker ? marker.getLngLat() : null;
       const moved = !current || Math.abs(current.lat - state.center.lat) > 1e-9 || Math.abs(current.lng - state.center.lon) > 1e-9;
       if (moved) {
         setMarker(state.center, false);
       } else {
-        updateSelection(state.center, false);
+        updateSelection(state.center, false, false);
       }
     }
   });
@@ -154,7 +183,7 @@ export function initMap() {
   return map;
 }
 
-export function setMarker(center, updateStore = true) {
+export function setMarker(center, updateStore = true, shouldZoom = true) {
   if (!map) return;
 
   if (marker) marker.remove();
@@ -176,29 +205,68 @@ export function setMarker(center, updateStore = true) {
 
   marker.on('dragend', () => {
     const { lng, lat } = marker.getLngLat();
-    updateSelection({ lat, lon: lng });
+    updateSelection({ lat, lon: lng }, true, false);
     isDraggingMarker = false;
   });
 
-  updateSelection(center, updateStore);
+  updateSelection(center, updateStore, false);
 
-  // Fit the map to the selection bounds with padding so the surrounding area stays visible.
-  const bounds = store.get('bounds');
-  if (bounds) {
-    map.fitBounds(
-      [
-        [bounds.minLon, bounds.minLat],
-        [bounds.maxLon, bounds.maxLat],
-      ],
-      { padding: 80, maxZoom: 17, duration: 600 }
-    );
+  if (shouldZoom) {
+    const bounds = store.get('bounds');
+    if (bounds) {
+      map.fitBounds(
+        [
+          [bounds.minLon, bounds.minLat],
+          [bounds.maxLon, bounds.maxLat],
+        ],
+        { padding: 80, maxZoom: 17, duration: 600 }
+      );
+    }
   }
+}
+
+function createRotationHandle(center, sizeMeters, rotation) {
+  if (rotationHandle) rotationHandle.remove();
+
+  const el = document.createElement('div');
+  el.className = 'rotation-handle';
+  el.title = 'Drag to rotate';
+
+  const pos = handlePosition(center, sizeMeters, rotation);
+  rotationHandle = new maplibregl.Marker({
+    element: el,
+    draggable: false,
+  })
+    .setLngLat([pos.lon, pos.lat])
+    .addTo(map);
+
+  el.addEventListener('mousedown', (e) => {
+    e.stopPropagation();
+    isRotating = true;
+    el.style.cursor = 'grabbing';
+  });
+
+  el.addEventListener('mouseenter', () => {
+    if (!isRotating) el.style.cursor = 'grab';
+  });
+
+  return rotationHandle;
+}
+
+function handlePosition(center, sizeMeters, rotation) {
+  const half = sizeMeters / 2;
+  const distance = half + HANDLE_DISTANCE_METERS;
+  const rad = (rotation * Math.PI) / 180;
+  // Top-center in local coords is (0, -distance); rotate by rad.
+  const dx = -distance * Math.sin(rad);
+  const dy = -distance * Math.cos(rad);
+  return localMetersToLonLat(center, dx, dy);
 }
 
 export function getAreaInputs() {
   const value = parseFloat($('areaValue')?.value);
   const unit = $('areaUnit')?.value || 'km';
-  const rotation = parseFloat($('areaRotation')?.value) || 0;
+  const rotation = store.get('rotation') || 0;
   return { value: Number.isFinite(value) ? value : 1, unit, rotation };
 }
 
@@ -221,7 +289,6 @@ export function sizeMetersFromInputs(inputs = getAreaInputs()) {
       meters = value * 1609.344;
       break;
     case 'acre':
-      // Treat acre as a square area; side length = sqrt(area)
       meters = Math.sqrt(value * 4046.85642);
       break;
     default:
@@ -232,7 +299,6 @@ export function sizeMetersFromInputs(inputs = getAreaInputs()) {
 }
 
 export function unitLimits(unit) {
-  // Convert 10 m min and 10,000 m max into each unit
   switch (unit) {
     case 'm':
       return { min: 10, max: 10000, step: 1 };
@@ -251,14 +317,24 @@ export function unitLimits(unit) {
 
 export function formatSizeLabel() {
   const { value, unit } = getAreaInputs();
-  const meters = sizeMetersFromInputs();
-  if (unit === 'acre') return `${value} acres (${Math.round(meters)} m side)`;
+  if (unit === 'acre') return `${value} acres`;
   return `${value} ${unit} × ${value} ${unit}`;
 }
 
-function updateSelection(center, updateStore = true) {
+function setRotation(rotation) {
+  const center = store.get('center');
+  if (!center) return;
+  rotation = ((rotation % 360) + 360) % 360;
   const sizeMeters = sizeMetersFromInputs();
-  const rotation = parseFloat($('areaRotation')?.value) || 0;
+  const bounds = boundsFromPolygon(rotatedSquare(center, sizeMeters, rotation));
+  store.set({ center, bounds, sizeMeters, rotation });
+  updateSelectionLayer(rotatedSquare(center, sizeMeters, rotation));
+  createRotationHandle(center, sizeMeters, rotation);
+}
+
+function updateSelection(center, updateStore = true, shouldZoom = false) {
+  const sizeMeters = sizeMetersFromInputs();
+  const rotation = store.get('rotation') || 0;
   const polygon = rotatedSquare(center, sizeMeters, rotation);
   const bounds = boundsFromPolygon(polygon);
 
@@ -266,6 +342,17 @@ function updateSelection(center, updateStore = true) {
     store.set({ center, bounds, sizeMeters, rotation });
   }
   updateSelectionLayer(polygon);
+  createRotationHandle(center, sizeMeters, rotation);
+
+  if (shouldZoom) {
+    map.fitBounds(
+      [
+        [bounds.minLon, bounds.minLat],
+        [bounds.maxLon, bounds.maxLat],
+      ],
+      { padding: 80, maxZoom: 17, duration: 600 }
+    );
+  }
 }
 
 function updateSelectionLayer(polygon) {
@@ -297,30 +384,38 @@ function polygonFromBounds(bounds) {
   };
 }
 
+function localMetersToLonLat(center, dx, dy) {
+  const latDelta = dy / METERS_PER_DEGREE_LAT;
+  const lonDelta = dx / (METERS_PER_DEGREE_LAT * Math.cos((center.lat * Math.PI) / 180));
+  return { lat: center.lat + latDelta, lon: center.lon + lonDelta };
+}
+
+function lonLatToLocalMeters(center, lat, lon) {
+  const dy = (lat - center.lat) * METERS_PER_DEGREE_LAT;
+  const dx = (lon - center.lon) * METERS_PER_DEGREE_LAT * Math.cos((center.lat * Math.PI) / 180);
+  return { dx, dy };
+}
+
 function rotatedSquare(center, sizeMeters, rotationDegrees) {
   const half = sizeMeters / 2;
   const rotation = (rotationDegrees * Math.PI) / 180;
   const cosR = Math.cos(rotation);
   const sinR = Math.sin(rotation);
 
-  // Convert half side from meters to degrees
-  const latDelta = half / METERS_PER_DEGREE_LAT;
-  const lonDelta = half / (METERS_PER_DEGREE_LAT * Math.cos((center.lat * Math.PI) / 180));
-
-  // Unrotated corners relative to center
+  // Unrotated corners in local meters (square centered at origin)
   const corners = [
-    { x: -lonDelta, y: -latDelta },
-    { x: lonDelta, y: -latDelta },
-    { x: lonDelta, y: latDelta },
-    { x: -lonDelta, y: latDelta },
+    { x: -half, y: -half },
+    { x: half, y: -half },
+    { x: half, y: half },
+    { x: -half, y: half },
   ];
 
-  const rotated = corners.map(({ x, y }) => ({
-    lon: center.lon + x * cosR - y * sinR,
-    lat: center.lat + x * sinR + y * cosR,
-  }));
+  const rotated = corners.map(({ x, y }) => {
+    const rx = x * cosR - y * sinR;
+    const ry = x * sinR + y * cosR;
+    return localMetersToLonLat(center, rx, ry);
+  });
 
-  // Close the polygon
   rotated.push(rotated[0]);
 
   return {
@@ -373,7 +468,7 @@ export function setBounds(bounds) {
     { padding: 40 }
   );
   const center = { lat: (bounds.minLat + bounds.maxLat) / 2, lon: (bounds.minLon + bounds.maxLon) / 2 };
-  updateSelection(center, false);
+  updateSelection(center, false, false);
 }
 
 export function getCenter() {
