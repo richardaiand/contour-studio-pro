@@ -65,12 +65,20 @@ async function buildServer() {
   // Serve static client in production
   if (isProduction) {
     const { default: fastifyStatic } = await import('@fastify/static');
+    const clientRoot = path.join(__dirname, '../dist/client');
     await fastify.register(fastifyStatic, {
-      root: path.join(__dirname, '../dist/client'),
+      root: clientRoot,
       prefix: '/',
+      wildcard: false,
     });
 
     fastify.setNotFoundHandler((req, reply) => {
+      // If the request looks like a static asset but wasn't found, return 404
+      // instead of serving index.html so broken assets are obvious.
+      if (/\.[a-zA-Z0-9]+$/.test(req.raw.url) && !req.raw.url.endsWith('.html')) {
+        reply.status(404).send({ error: 'Not found' });
+        return;
+      }
       reply.sendFile('index.html');
     });
   }

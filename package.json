@@ -11,6 +11,7 @@
     "dev:server": "node --watch server/index.js",
     "dev:client": "vite",
     "build": "vite build",
+    "heroku-postbuild": "npm run build",
     "preview": "vite preview",
     "migrate": "node server/db.js migrate",
     "test": "node --test"
