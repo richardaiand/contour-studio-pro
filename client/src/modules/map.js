@@ -166,6 +166,24 @@ export function sizeMetersFromInputs(inputs = getAreaInputs()) {
   return Math.max(MIN_SIZE_METERS, Math.min(MAX_SIZE_METERS, meters));
 }
 
+export function unitLimits(unit) {
+  // Convert 10 m min and 10,000 m max into each unit
+  switch (unit) {
+    case 'm':
+      return { min: 10, max: 10000, step: 1 };
+    case 'km':
+      return { min: 0.01, max: 10, step: 0.01 };
+    case 'ft':
+      return { min: 33, max: 32808, step: 1 };
+    case 'mi':
+      return { min: 0.006, max: 6.214, step: 0.001 };
+    case 'acre':
+      return { min: 0.003, max: 24.71, step: 0.001 };
+    default:
+      return { min: 0.01, max: 10, step: 0.01 };
+  }
+}
+
 export function formatSizeLabel() {
   const { value, unit } = getAreaInputs();
   const meters = sizeMetersFromInputs();

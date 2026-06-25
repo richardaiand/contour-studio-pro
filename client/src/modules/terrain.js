@@ -1,7 +1,7 @@
 import { $, api } from '../utils.js';
 import { store, setStatus } from '../store/index.js';
 import { setTerrain, getTerrainMesh } from './viewport.js';
-import { computeBounds, getCenter, sizeMetersFromInputs, getAreaInputs, formatSizeLabel } from './map.js';
+import { computeBounds, getCenter, sizeMetersFromInputs, getAreaInputs, formatSizeLabel, unitLimits } from './map.js';
 import { loadProjects } from './projects.js';
 
 let suggestionIndex = -1;
@@ -37,9 +37,30 @@ export function initTerrain() {
     if (rotationLabel) rotationLabel.textContent = `${$('areaRotation').value}°`;
   };
 
+  const updateUnitLimits = () => {
+    const unit = $('areaUnit')?.value || 'km';
+    const input = $('areaValue');
+    if (!input) return;
+    const limits = unitLimits(unit);
+    input.min = limits.min;
+    input.max = limits.max;
+    input.step = limits.step;
+    // Clamp existing value to new unit limits
+    const current = parseFloat(input.value);
+    if (Number.isFinite(current)) {
+      const clamped = Math.max(limits.min, Math.min(limits.max, current));
+      if (clamped !== current) input.value = String(clamped);
+    }
+  };
+
   $('areaValue')?.addEventListener('input', updateArea);
-  $('areaUnit')?.addEventListener('change', updateArea);
+  $('areaUnit')?.addEventListener('change', () => {
+    updateUnitLimits();
+    updateArea();
+  });
   $('areaRotation')?.addEventListener('input', updateArea);
+
+  updateUnitLimits();
 
   // Exports
   document.querySelectorAll('.exports button').forEach((btn) => {
