@@ -48,17 +48,19 @@ export async function fetchDem(bounds, detail) {
   const arrayBuffer = await res.arrayBuffer();
   const { width, height, grid } = await parseGeoTiff(arrayBuffer);
 
-  // OpenTopography SRTM resolution: GL1 ≈ 30m, GL3 ≈ 90m
-  const nominalResolution = dataset === 'SRTMGL1' ? 30 : 90;
   const targetSize = Math.min(detail.meshSize, detail.maxSamples);
   const finalGrid = resampleGrid(grid, targetSize, targetSize);
+
+  // Nominal source resolution: USGS 3DEP 1m, SRTM GL1 ~30m, SRTM GL3 ~90m
+  const nominalResolution =
+    dataset === 'USGS1m' ? 1 : dataset === 'SRTMGL1' ? 30 : 90;
 
   return {
     width: targetSize,
     height: targetSize,
     grid: finalGrid,
     resolutionMeters: nominalResolution,
-    source: 'opentopography',
+    source: dataset === 'USGS1m' ? 'usgs-3dep' : 'opentopography',
     attribution: `Elevation data by OpenTopography (${dataset})`,
   };
 }
