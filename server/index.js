@@ -31,6 +31,7 @@ async function buildServer() {
     trustProxy: true,
     connectionTimeout: config.requestTimeout,
     keepAliveTimeout: config.requestTimeout,
+    bodyLimit: 50 * 1024 * 1024,
   });
 
   // Error handling

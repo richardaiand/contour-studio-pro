@@ -8,6 +8,11 @@ let renderer, scene, camera, controls, terrainMesh, gridHelper;
 export function initViewport() {
   const canvas = $('scene');
   if (!canvas) return;
+  if (canvas.clientWidth === 0 || canvas.clientHeight === 0) return;
+
+  if (renderer) {
+    renderer.dispose();
+  }
 
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -71,7 +76,12 @@ function cssColor(name) {
 }
 
 export function setTerrain(meshData) {
-  if (!scene || !renderer) {
+  const canvas = $('scene');
+  if (!canvas || canvas.clientWidth === 0 || canvas.clientHeight === 0) {
+    setTimeout(() => setTerrain(meshData), 100);
+    return;
+  }
+  if (!renderer || !scene) {
     initViewport();
   }
   if (!scene) return;
