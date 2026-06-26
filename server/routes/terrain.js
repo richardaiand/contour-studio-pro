@@ -67,6 +67,7 @@ export default async function (fastify) {
 
   // Export terrain mesh
   fastify.post('/export', {
+    onRequest: [fastify.authenticate],
     schema: {
       body: {
         type: 'object',
@@ -75,27 +76,33 @@ export default async function (fastify) {
           mesh: { type: 'object' },
           format: { type: 'string', enum: ['obj', 'stl', 'heightmap'] },
           filename: { type: 'string' },
+          projectId: { type: 'string' },
         },
       },
     },
   }, async (req, reply) => {
-    const { mesh, format, filename = 'terrain', projectId } = req.body;
-    const result = exportMesh(mesh, format, filename);
+    try {
+      const { mesh, format, filename = 'terrain', projectId } = req.body;
+      const result = exportMesh(mesh, format, filename);
 
-    if (req.user?.userId) {
-      const sizeBytes = Buffer.isBuffer(result.data) ? result.data.length : Buffer.byteLength(result.data, 'utf8');
-      recordExport({
-        userId: req.user.userId,
-        projectId,
-        format,
-        filename: result.filename,
-        sizeBytes,
-      });
+      if (req.user?.userId) {
+        const sizeBytes = Buffer.isBuffer(result.data) ? result.data.length : Buffer.byteLength(result.data, 'utf8');
+        recordExport({
+          userId: req.user.userId,
+          projectId,
+          format,
+          filename: result.filename,
+          sizeBytes,
+        });
+      }
+
+      reply.header('Content-Disposition', `attachment; filename="${result.filename}"`);
+      reply.header('Content-Type', result.type);
+      return reply.send(result.data);
+    } catch (err) {
+      req.log.error({ err }, 'Export failed');
+      throw new AppError('Export failed: ' + err.message, 500, 'EXPORT_ERROR');
     }
-
-    reply.header('Content-Disposition', `attachment; filename="${result.filename}"`);
-    reply.header('Content-Type', result.type);
-    return reply.send(result.data);
   });
 }
 
