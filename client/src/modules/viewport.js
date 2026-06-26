@@ -68,12 +68,13 @@ function createNorthArrow() {
 
   northArrow = new THREE.Group();
 
+  // Arrow points -Y (becomes +Z = north after rotation.x = -PI/2)
   const arrowShape = new THREE.Shape();
-  arrowShape.moveTo(0, 1);
-  arrowShape.lineTo(0.3, -0.5);
-  arrowShape.lineTo(0, -0.2);
-  arrowShape.lineTo(-0.3, -0.5);
-  arrowShape.lineTo(0, 1);
+  arrowShape.moveTo(0, -1);
+  arrowShape.lineTo(0.3, 0.5);
+  arrowShape.lineTo(0, 0.2);
+  arrowShape.lineTo(-0.3, 0.5);
+  arrowShape.lineTo(0, -1);
 
   const arrowGeo = new THREE.ShapeGeometry(arrowShape);
   const arrowMat = new THREE.MeshBasicMaterial({ color: 0xef4444, side: THREE.DoubleSide });
@@ -85,6 +86,7 @@ function createNorthArrow() {
   const ring = new THREE.Mesh(ringGeo, ringMat);
   northArrow.add(ring);
 
+  // N label near the tip (-Y end = north after rotation)
   const labelCanvas = document.createElement('canvas');
   labelCanvas.width = 128;
   labelCanvas.height = 128;
@@ -98,7 +100,7 @@ function createNorthArrow() {
   const labelMat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
   const labelGeo = new THREE.PlaneGeometry(0.6, 0.6);
   const label = new THREE.Mesh(labelGeo, labelMat);
-  label.position.set(0, 0, 0);
+  label.position.set(0, -0.6, 0);
   northArrow.add(label);
 
   northArrow.rotation.x = -Math.PI / 2;
