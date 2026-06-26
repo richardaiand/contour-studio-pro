@@ -63,37 +63,42 @@ export default async function (fastify) {
         properties: {
           title: { type: 'string', minLength: 1, maxLength: 200 },
           detailLevel: { type: 'string', enum: ['draft', 'standard', 'survey'] },
-          bounds: { type: 'object' },
-          center: { type: 'object' },
-          sourceInfo: { type: 'object' },
+          bounds: { type: ['object', 'null'] },
+          center: { type: ['object', 'null'] },
+          sourceInfo: { type: ['object', 'null'] },
         },
       },
     },
   }, async (req, reply) => {
-    const db = getDb();
-    const id = generateId();
-    const createdAt = now();
-    const { title, detailLevel = 'standard', bounds, center, sourceInfo } = req.body;
+    try {
+      const db = getDb();
+      const id = generateId();
+      const createdAt = now();
+      const { title, detailLevel = 'standard', bounds, center, sourceInfo } = req.body;
 
-    db.prepare(
-      `INSERT INTO projects (id, user_id, title, detail_level, bounds_json, center_json, source_info_json, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      id,
-      req.user.userId,
-      title.slice(0, 200),
-      detailLevel,
-      bounds ? JSON.stringify(bounds) : null,
-      center ? JSON.stringify(center) : null,
-      sourceInfo ? JSON.stringify(sourceInfo) : null,
-      createdAt,
-      createdAt
-    );
+      db.prepare(
+        `INSERT INTO projects (id, user_id, title, detail_level, bounds_json, center_json, source_info_json, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        id,
+        req.user.userId,
+        title.slice(0, 200),
+        detailLevel,
+        bounds ? JSON.stringify(bounds) : null,
+        center ? JSON.stringify(center) : null,
+        sourceInfo ? JSON.stringify(sourceInfo) : null,
+        createdAt,
+        createdAt
+      );
 
-    reply.status(201);
-    return serializeProject(
-      db.prepare('SELECT * FROM projects WHERE id = ?').get(id)
-    );
+      reply.status(201);
+      return serializeProject(
+        db.prepare('SELECT * FROM projects WHERE id = ?').get(id)
+      );
+    } catch (err) {
+      req.log.error({ err }, 'Failed to create project');
+      throw new AppError('Failed to create project: ' + err.message, 500, 'PROJECT_CREATE_ERROR');
+    }
   });
 
   // Get project with messages
