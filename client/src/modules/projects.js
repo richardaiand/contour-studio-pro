@@ -99,9 +99,14 @@ export function renderDashboard(projects) {
         <div class="project-card-title">${escapeHtml(p.title)}</div>
         <div class="project-card-meta">
           <span>${formatDate(p.updatedAt)}</span>
-          <button class="ghost sm project-card-delete" data-id="${p.id}" title="Delete">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-          </button>
+          <div class="project-card-actions">
+            <button class="ghost sm project-card-rename" data-id="${p.id}" title="Rename">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="ghost sm project-card-delete" data-id="${p.id}" title="Delete">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -109,6 +114,9 @@ export function renderDashboard(projects) {
       if (e.target.closest('.project-card-delete')) {
         e.stopPropagation();
         deleteProject(p);
+      } else if (e.target.closest('.project-card-rename')) {
+        e.stopPropagation();
+        renameProject(p);
       } else {
         selectProject(p);
       }
@@ -138,6 +146,22 @@ async function deleteProject(project) {
     setStatus('Project deleted.', 'ok');
   } catch (e) {
     setStatus('Failed to delete project: ' + e.message, 'error');
+  }
+}
+
+async function renameProject(project) {
+  const newName = prompt('Enter new project name:', project.title);
+  if (!newName || !newName.trim() || newName.trim() === project.title) return;
+  try {
+    const updated = await api(`/projects/${project.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ title: newName.trim() }),
+    });
+    const projects = store.get('projects').map(p => p.id === updated.id ? updated : p);
+    store.set({ projects });
+    setStatus('Project renamed.', 'ok');
+  } catch (e) {
+    setStatus('Failed to rename project: ' + e.message, 'error');
   }
 }
 

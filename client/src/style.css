@@ -141,14 +141,31 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
 }
 
-.project-card-delete {
+.project-card-actions {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.project-card-actions button {
+  padding: 4px 6px;
   opacity: 0;
   transition: opacity 0.15s;
+  color: var(--muted);
 }
 
-.project-card:hover .project-card-delete {
+.project-card-actions button:hover {
+  color: var(--text);
+}
+
+.project-card-delete:hover {
+  color: var(--danger) !important;
+}
+
+.project-card:hover .project-card-actions button {
   opacity: 1;
 }
 
