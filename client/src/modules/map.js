@@ -53,7 +53,7 @@ export function initMap() {
     scrollZoom: { smooth: true, speed: 0.6 },
     touchZoomRotate: true,
     dragRotate: false,
-    dragPan: true,
+    dragPan: false,
     pitchWithRotate: false,
     maxPitch: 0,
   });
@@ -63,22 +63,52 @@ export function initMap() {
   // Prevent right-click context menu
   map.getCanvas().addEventListener('contextmenu', (e) => e.preventDefault());
 
-  // Left-click: move box / place marker. Right-click: pan map.
-  // MapLibre's dragPan works on left-click by default. We intercept and
-  // disable dragPan on left-click so it doesn't fight the box drag.
+  // Custom right-click drag to pan the map
+  let isRightPanning = false;
+  let rightPanStart = null;
+
   map.on('mousedown', (e) => {
-    if (e.originalEvent.button === 0) {
-      // Left-click — let box/marker drag handle it, disable map pan
-      map.dragPan.disable();
-    } else if (e.originalEvent.button === 2) {
-      // Right-click — enable pan and let MapLibre handle it
-      map.dragPan.enable();
+    if (e.originalEvent.button !== 2) return; // right-click only
+    isRightPanning = true;
+    rightPanStart = {
+      x: e.originalEvent.clientX,
+      y: e.originalEvent.clientY,
+      center: { ...map.getCenter() },
+    };
+    map.getCanvas().style.cursor = 'grabbing';
+  });
+
+  map.on('mousemove', (e) => {
+    if (!isRightPanning || !rightPanStart) return;
+    const dx = e.originalEvent.clientX - rightPanStart.x;
+    const dy = e.originalEvent.clientY - rightPanStart.y;
+    // Convert pixel delta to degrees based on zoom level
+    const scale = 256 * Math.pow(2, map.getZoom());
+    const lngDeg = -dx / scale * 360;
+    const latDeg = dy / scale * 180;
+    map.jumpTo({
+      center: [
+        Math.max(-180, Math.min(180, rightPanStart.center.lng + lngDeg)),
+        Math.max(-85, Math.min(85, rightPanStart.center.lat + latDeg)),
+      ],
+    });
+  });
+
+  map.on('mouseup', () => {
+    if (isRightPanning) {
+      isRightPanning = false;
+      rightPanStart = null;
+      map.getCanvas().style.cursor = '';
     }
   });
 
-  map.on('mouseup', (e) => {
-    // Re-enable dragPan after any mouseup
-    map.dragPan.enable();
+  // Also stop panning if mouse leaves the canvas
+  map.getCanvas().addEventListener('mouseleave', () => {
+    if (isRightPanning) {
+      isRightPanning = false;
+      rightPanStart = null;
+      map.getCanvas().style.cursor = '';
+    }
   });
 
   // Clamp latitude so the map doesn't scroll past the poles

@@ -227,8 +227,7 @@ async function generateTerrain() {
   }
 
   store.set({ isGenerating: true });
-    setStatus('Queueing terrain generation…', '');
-    setProgress(0, true);
+    setLoading(true, 'Queueing terrain generation…');
     document.querySelectorAll('.exports button').forEach((b) => (b.disabled = true));
 
   try {
@@ -254,7 +253,7 @@ async function generateTerrain() {
       throw new Error('No job ID returned from server');
     }
 
-    setStatus('Generating terrain…', '');
+    setLoading(true, 'Generating terrain…');
     const data = await pollJob(jobId);
 
     store.set({ currentTerrain: data, currentProject: { id: data.projectId, title: data.projectTitle } });
@@ -263,7 +262,7 @@ async function generateTerrain() {
       drawSelectionOutline(data.originalBounds, data.fetchBounds);
     }
     updateStats(data);
-    setProgress(100, false);
+    setLoading(false);
     const sizeLabel = formatSizeLabel();
     let statusMsg = `${data.sourceDescription || 'Terrain'} · ${sizeLabel} · ${data.resolutionMeters}m resolution`;
     if (data.wasExpanded) {
@@ -273,24 +272,28 @@ async function generateTerrain() {
     loadProjects();
     navigate('studio');
   } catch (e) {
-    setProgress(0, false);
+    setLoading(false);
     setStatus('Generation failed: ' + e.message, 'error');
   } finally {
     store.set({ isGenerating: false });
   }
 }
 
-function setProgress(percent, visible) {
-  const bar = $('progressBar');
-  const fill = $('progressFill');
-  if (!bar || !fill) return;
-  bar.style.display = visible ? 'block' : 'none';
-  fill.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+function setLoading(visible, text) {
+  const overlay = $('loadingOverlay');
+  const textEl = $('loadingText');
+  if (!overlay) return;
+  if (visible) {
+    if (textEl && text) textEl.textContent = text;
+    overlay.classList.remove('hidden');
+  } else {
+    overlay.classList.add('hidden');
+  }
 }
 
 async function pollJob(jobId) {
   const start = Date.now();
-  const maxWait = 5 * 60 * 1000; // 5 minutes
+  const maxWait = 5 * 60 * 1000;
 
   while (Date.now() - start < maxWait) {
     const job = await api(`/jobs/${jobId}`);
@@ -302,8 +305,9 @@ async function pollJob(jobId) {
       throw new Error(job.error || 'Job failed');
     }
 
-    setStatus(`Generating terrain… ${job.progress}%`, '');
-    setProgress(job.progress);
+    if (job.progress > 0) {
+      setLoading(true, `Generating terrain… ${job.progress}%`);
+    }
     await sleep(1500);
   }
 

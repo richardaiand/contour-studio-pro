@@ -110,9 +110,6 @@
 
               <button id="dropCenterBtn" class="secondary full" title="Place the box at the center of the current map view">⊕ Drop Center Here</button>
               <button id="generateBtn" class="primary full" disabled>Generate Terrain</button>
-              <div id="progressBar" class="progress-bar" style="display:none;">
-                <div id="progressFill" class="progress-fill"></div>
-              </div>
               <div id="status" class="status"></div>
             </div>
 
@@ -134,6 +131,10 @@
 
         <section class="viewport-map">
           <div id="map" class="map-view"></div>
+          <div id="loadingOverlay" class="loading-overlay hidden">
+            <div class="loading-spinner"></div>
+            <div id="loadingText" class="loading-text">Generating terrain…</div>
+          </div>
         </section>
       </main>
     </section>
