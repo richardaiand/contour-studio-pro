@@ -1008,6 +1008,21 @@ dialog input {
   color: var(--success);
 }
 
+.api-key-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.api-key-row input {
+  flex: 1;
+}
+
+.api-key-row input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (max-width: 900px) {
   .app-main {
     flex-direction: column;

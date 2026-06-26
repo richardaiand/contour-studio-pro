@@ -268,7 +268,10 @@
       <input id="model" type="text" placeholder="deepseek-ai/deepseek-v4-pro" />
     </div>
     <label for="apiKey">API key</label>
-    <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+    <div class="api-key-row">
+      <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" disabled />
+      <button id="newKeyBtn" type="button" class="ghost sm">New Key</button>
+    </div>
     <div id="apiKeyStatus" class="api-key-status"></div>
     <div id="providerPresets" class="presets"></div>
     <div class="dlg-actions">

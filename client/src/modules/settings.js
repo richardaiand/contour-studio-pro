@@ -17,6 +17,19 @@ export function initSettings() {
   $('cancelSettings')?.addEventListener('click', () => $('settingsDlg')?.close());
   $('saveSettings')?.addEventListener('click', saveSettings);
 
+  $('newKeyBtn')?.addEventListener('click', () => {
+    const input = $('apiKey');
+    input.disabled = false;
+    input.value = '';
+    input.focus();
+    $('newKeyBtn').style.display = 'none';
+    const keyStatus = $('apiKeyStatus');
+    if (keyStatus) {
+      keyStatus.textContent = 'Enter a new API key.';
+      keyStatus.classList.remove('saved');
+    }
+  });
+
   const wrap = $('providerPresets');
   if (wrap) {
     PRESETS.forEach((p) => {
@@ -58,12 +71,25 @@ async function openSettings() {
   $('model').value = settings.providerModel || '';
   $('apiKey').value = '';
 
+  const keyInput = $('apiKey');
+  const newKeyBtn = $('newKeyBtn');
   const keyStatus = $('apiKeyStatus');
-  if (keyStatus) {
-    if (settings.hasApiKey) {
-      keyStatus.textContent = 'Key saved. Enter a new key to replace it.';
+
+  if (settings.hasApiKey) {
+    keyInput.disabled = true;
+    keyInput.value = '';
+    keyInput.placeholder = '• • • • • • • •';
+    if (newKeyBtn) newKeyBtn.style.display = '';
+    if (keyStatus) {
+      keyStatus.textContent = 'Key saved. Click "New Key" to replace it.';
       keyStatus.classList.add('saved');
-    } else {
+    }
+  } else {
+    keyInput.disabled = false;
+    keyInput.value = '';
+    keyInput.placeholder = 'sk-...';
+    if (newKeyBtn) newKeyBtn.style.display = 'none';
+    if (keyStatus) {
       keyStatus.textContent = '';
       keyStatus.classList.remove('saved');
     }
