@@ -16,8 +16,8 @@ export async function fetchElevation(bounds, detail) {
     }
   }
 
-  // Open-Meteo accepts up to 100 locations per request
-  const chunkSize = 100;
+  // Open-Meteo accepts up to 100 locations per request, but we use 50 to avoid URL length limits
+  const chunkSize = 50;
   const results = [];
 
   for (let i = 0; i < points.length; i += chunkSize) {
@@ -36,7 +36,8 @@ export async function fetchElevation(bounds, detail) {
     }
 
     if (!res.ok) {
-      throw new AppError(`Open-Meteo error: ${res.status}`, 502, 'DEM_ERROR');
+      const text = await res.text().catch(() => '');
+      throw new AppError(`Open-Meteo error ${res.status}: ${text.slice(0, 200)}`, 502, 'DEM_ERROR');
     }
 
     const data = await res.json();

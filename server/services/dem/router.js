@@ -10,8 +10,8 @@ export const DETAIL_CONFIG = {
   survey: { targetResolutionMeters: 3, meshSize: 512, maxSamples: 1024 },
 };
 
-// OpenTopography requires at least ~0.01 km² (~100m × 100m)
-const MIN_AREA_DEGREES_LAT = 0.001; // ~111m
+// OpenTopography requires each side of the bounding box to be > ~250 meters
+const MIN_SIDE_METERS = 300; // 300m to be safe above the 250m minimum
 
 function calculateAreaKm2(bounds) {
   const latMid = (bounds.minLat + bounds.maxLat) / 2;
@@ -29,8 +29,8 @@ function expandToBoundsToMinimum(originalBounds) {
   const lonMid = (originalBounds.minLon + originalBounds.maxLon) / 2;
 
   // Convert minimum meters to degrees at this latitude
-  const minLatDeg = MIN_AREA_DEGREES_LAT;
-  const minLonDeg = MIN_AREA_DEGREES_LAT / Math.cos((latMid * Math.PI) / 180);
+  const minLatDeg = MIN_SIDE_METERS / 111320;
+  const minLonDeg = MIN_SIDE_METERS / (111320 * Math.cos((latMid * Math.PI) / 180));
 
   const neededLatSpan = Math.max(latSpan, minLatDeg);
   const neededLonSpan = Math.max(lonSpan, minLonDeg);
