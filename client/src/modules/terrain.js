@@ -1,6 +1,6 @@
 import { $, api } from '../utils.js';
 import { store, setStatus } from '../store/index.js';
-import { setTerrain, getTerrainMesh } from './viewport.js';
+import { setTerrain, getTerrainMesh, drawSelectionOutline } from './viewport.js';
 import { computeBounds, getCenter, getMapCenter, sizeMetersFromInputs, getAreaInputs, formatSizeLabel, unitLimits } from './map.js';
 import { loadProjects } from './projects.js';
 import { navigate } from '../router.js';
@@ -238,10 +238,17 @@ async function generateTerrain() {
 
     store.set({ currentTerrain: data, currentProject: { id: data.projectId, title: data.projectTitle } });
     setTerrain(data.mesh);
+    if (data.wasExpanded && data.originalBounds) {
+      drawSelectionOutline(data.originalBounds, data.fetchBounds);
+    }
     updateStats(data);
     setProgress(100, false);
     const sizeLabel = formatSizeLabel();
-    setStatus(`${data.sourceDescription || 'Terrain'} · ${sizeLabel} · ${data.resolutionMeters}m resolution`, 'ok');
+    let statusMsg = `${data.sourceDescription || 'Terrain'} · ${sizeLabel} · ${data.resolutionMeters}m resolution`;
+    if (data.wasExpanded) {
+      statusMsg += ' · Area expanded to meet minimum data requirements';
+    }
+    setStatus(statusMsg, 'ok');
     loadProjects();
     navigate('studio');
   } catch (e) {

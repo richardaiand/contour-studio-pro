@@ -138,6 +138,48 @@ function animate() {
   if (renderer && scene && camera) renderer.render(scene, camera);
 }
 
+let selectionOutline = null;
+
+export function drawSelectionOutline(originalBounds, fetchBounds) {
+  if (!scene) return;
+  if (selectionOutline) {
+    scene.remove(selectionOutline);
+    selectionOutline.geometry?.dispose();
+    selectionOutline.material?.dispose();
+  }
+
+  const latMid = (originalBounds.minLat + originalBounds.maxLat) / 2;
+  const xScale = 111320 * Math.cos((latMid * Math.PI) / 180);
+  const zScale = 111320;
+
+  const fetchCenterLat = (fetchBounds.minLat + fetchBounds.maxLat) / 2;
+  const fetchCenterLon = (fetchBounds.minLon + fetchBounds.maxLon) / 2;
+  const offsetX = (fetchCenterLon - fetchBounds.minLon) * xScale - xScale * (fetchBounds.maxLon - fetchBounds.minLon) / 2;
+  const offsetZ = (fetchCenterLat - fetchBounds.minLat) * zScale - zScale * (fetchBounds.maxLat - fetchBounds.minLat) / 2;
+
+  const w = (originalBounds.maxLon - originalBounds.minLon) * xScale;
+  const h = (originalBounds.maxLat - originalBounds.minLat) * zScale;
+  const cx = (originalBounds.minLon + originalBounds.maxLon) / 2;
+  const cz = (originalBounds.minLat + originalBounds.maxLat) / 2;
+
+  const px = (cx - fetchBounds.minLon) * xScale - xScale * (fetchBounds.maxLon - fetchBounds.minLon) / 2;
+  const pz = (cz - fetchBounds.minLat) * zScale - zScale * (fetchBounds.maxLat - fetchBounds.minLat) / 2;
+
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array([
+    px - w / 2, 1, pz - h / 2,
+    px + w / 2, 1, pz - h / 2,
+    px + w / 2, 1, pz + h / 2,
+    px - w / 2, 1, pz + h / 2,
+    px - w / 2, 1, pz - h / 2,
+  ]);
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+  const mat = new THREE.LineBasicMaterial({ color: 0x3b82f6, linewidth: 3 });
+  selectionOutline = new THREE.Line(geo, mat);
+  scene.add(selectionOutline);
+}
+
 export function getTerrainMesh() {
   return terrainMesh;
 }

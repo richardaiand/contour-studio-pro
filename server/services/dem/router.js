@@ -10,28 +10,73 @@ export const DETAIL_CONFIG = {
   survey: { targetResolutionMeters: 3, meshSize: 512, maxSamples: 1024 },
 };
 
+// OpenTopography requires at least ~0.01 km² (~100m × 100m)
+const MIN_AREA_DEGREES_LAT = 0.001; // ~111m
+
+function calculateAreaKm2(bounds) {
+  const latMid = (bounds.minLat + bounds.maxLat) / 2;
+  const latSpan = bounds.maxLat - bounds.minLat;
+  const lonSpan = bounds.maxLon - bounds.minLon;
+  const widthKm = lonSpan * 111.32 * Math.cos((latMid * Math.PI) / 180);
+  const heightKm = latSpan * 111.32;
+  return widthKm * heightKm;
+}
+
+function expandToBoundsToMinimum(originalBounds) {
+  const latSpan = originalBounds.maxLat - originalBounds.minLat;
+  const lonSpan = originalBounds.maxLon - originalBounds.minLon;
+  const latMid = (originalBounds.minLat + originalBounds.maxLat) / 2;
+  const lonMid = (originalBounds.minLon + originalBounds.maxLon) / 2;
+
+  // Convert minimum meters to degrees at this latitude
+  const minLatDeg = MIN_AREA_DEGREES_LAT;
+  const minLonDeg = MIN_AREA_DEGREES_LAT / Math.cos((latMid * Math.PI) / 180);
+
+  const neededLatSpan = Math.max(latSpan, minLatDeg);
+  const neededLonSpan = Math.max(lonSpan, minLonDeg);
+
+  const wasExpanded = neededLatSpan > latSpan || neededLonSpan > lonSpan;
+
+  return {
+    bounds: {
+      minLat: latMid - neededLatSpan / 2,
+      maxLat: latMid + neededLatSpan / 2,
+      minLon: lonMid - neededLonSpan / 2,
+      maxLon: lonMid + neededLonSpan / 2,
+    },
+    wasExpanded,
+    originalBounds,
+    expansionNote: wasExpanded
+      ? `Selected area was ${calculateAreaKm2(originalBounds).toFixed(4)} km², below the 0.01 km² minimum. Expanded to ${calculateAreaKm2({
+          minLat: latMid - neededLatSpan / 2,
+          maxLat: latMid + neededLatSpan / 2,
+          minLon: lonMid - neededLonSpan / 2,
+          maxLon: lonMid + neededLonSpan / 2,
+        }).toFixed(4)} km² to fetch elevation data.`
+      : null,
+  };
+}
+
 export async function fetchDemForBounds(bounds, detailLevel = 'standard') {
   const detail = DETAIL_CONFIG[detailLevel] || DETAIL_CONFIG.standard;
   const errors = [];
 
-  // Ensure minimum area size for API compatibility
-  // OpenTopography requires at least ~0.01 km², Open-Meteo needs spacing
-  const minSpan = 0.001; // ~100m minimum degrees
-  const adjustedBounds = {
-    minLat: Math.min(bounds.minLat, bounds.maxLat - minSpan),
-    maxLat: Math.max(bounds.maxLat, bounds.minLat + minSpan),
-    minLon: Math.min(bounds.minLon, bounds.maxLon - minSpan),
-    maxLon: Math.max(bounds.maxLon, bounds.minLon + minSpan),
-  };
+  // Expand bounds if below minimum area requirement
+  const expansion = expandToBoundsToMinimum(bounds);
+  const fetchBounds = expansion.bounds;
 
   // 1. Try OpenTopography global DEM if key is configured
   if (config.dem.openTopographyKey) {
     try {
-      const data = await opentopography.fetchDem(adjustedBounds, detail);
+      const data = await opentopography.fetchDem(fetchBounds, detail);
       return {
         ...data,
         detailLevel,
         sources: ['opentopography'],
+        originalBounds: bounds,
+        fetchBounds,
+        wasExpanded: expansion.wasExpanded,
+        expansionNote: expansion.expansionNote,
       };
     } catch (err) {
       errors.push(`OpenTopography: ${err.message}`);
@@ -40,11 +85,15 @@ export async function fetchDemForBounds(bounds, detailLevel = 'standard') {
 
   // 2. Fallback to Open-Meteo (free, no key)
   try {
-    const data = await openmeteo.fetchElevation(adjustedBounds, detail);
+    const data = await openmeteo.fetchElevation(fetchBounds, detail);
     return {
       ...data,
       detailLevel,
       sources: ['open-meteo'],
+      originalBounds: bounds,
+      fetchBounds,
+      wasExpanded: expansion.wasExpanded,
+      expansionNote: expansion.expansionNote,
     };
   } catch (err) {
     errors.push(`Open-Meteo: ${err.message}`);

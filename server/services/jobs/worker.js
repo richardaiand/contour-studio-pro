@@ -86,7 +86,10 @@ async function processTerrainJob(job, setProgress) {
     throw new Error('DEM grid was empty');
   }
 
-  const mesh = gridToMesh(dem.grid, bounds, { verticalExaggeration });
+  // Use the fetch bounds (which may be expanded) for mesh generation
+  // so the terrain covers the full data area
+  const meshBounds = dem.fetchBounds || bounds;
+  const mesh = gridToMesh(dem.grid, meshBounds, { verticalExaggeration });
 
   setProgress(95);
   const project = createProjectFromJob(job, dem, mesh);
@@ -104,6 +107,10 @@ async function processTerrainJob(job, setProgress) {
       sources: dem.sources,
       sourceDescription: selectSourceDescription(dem.sources, detailLevel),
       attribution: dem.attribution,
+      wasExpanded: dem.wasExpanded || false,
+      expansionNote: dem.expansionNote || null,
+      originalBounds: dem.originalBounds || bounds,
+      fetchBounds: dem.fetchBounds || bounds,
       mesh: {
         width: mesh.width,
         height: mesh.height,
