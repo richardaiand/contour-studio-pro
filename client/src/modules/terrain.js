@@ -233,10 +233,15 @@ async function generateTerrain() {
 
   try {
     const detailLevel = store.get('detail');
-    const { jobId } = await api('/jobs/terrain', {
+    const response = await api('/jobs/terrain', {
       method: 'POST',
       body: JSON.stringify({ bounds, detailLevel, verticalExaggeration: 1.5 }),
     });
+
+    const jobId = response.jobId;
+    if (!jobId) {
+      throw new Error('No job ID returned from server');
+    }
 
     setStatus('Generating terrain…', '');
     const data = await pollJob(jobId);

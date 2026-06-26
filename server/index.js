@@ -84,6 +84,8 @@ async function buildServer() {
       user: req.user,
       projectsQuery: null,
       exportsQuery: null,
+      jobsQuery: null,
+      workerRunning: false,
       error: null,
     };
     try {
@@ -100,6 +102,11 @@ async function buildServer() {
         info.exportsQuery = db.prepare('SELECT * FROM exports WHERE user_id = ?').all(req.user.userId);
       } catch (e) {
         info.exportsQuery = { error: e.message };
+      }
+      try {
+        info.jobsQuery = db.prepare('SELECT id, status, type, error FROM jobs WHERE user_id = ? ORDER BY created_at DESC LIMIT 5').all(req.user.userId);
+      } catch (e) {
+        info.jobsQuery = { error: e.message };
       }
     } catch (err) {
       info.error = err.message;
