@@ -11,6 +11,7 @@ function serializeProject(row) {
     bounds: parseJson(row.bounds_json),
     center: parseJson(row.center_json),
     sourceInfo: parseJson(row.source_info_json),
+    terrainData: parseJson(row.terrain_data_json),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

@@ -22,11 +22,12 @@ export default async function (fastify) {
           },
           detailLevel: { type: 'string', enum: ['draft', 'standard', 'survey'], default: 'standard' },
           verticalExaggeration: { type: 'number', default: 1.5 },
+          projectId: { type: 'string' },
         },
       },
     },
   }, async (req) => {
-    const { bounds, detailLevel = 'standard', verticalExaggeration = 1.5 } = req.body;
+    const { bounds, detailLevel = 'standard', verticalExaggeration = 1.5, projectId } = req.body;
 
     if (bounds.minLat >= bounds.maxLat || bounds.minLon >= bounds.maxLon) {
       throw new AppError('Invalid bounds', 400, 'BAD_REQUEST');
@@ -35,7 +36,7 @@ export default async function (fastify) {
     const job = createJob({
       userId: req.user.userId,
       type: 'terrain:generate',
-      payload: { bounds, detailLevel, verticalExaggeration },
+      payload: { bounds, detailLevel, verticalExaggeration, projectId },
     });
 
     return { jobId: job.id, status: job.status };

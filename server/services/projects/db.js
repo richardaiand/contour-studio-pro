@@ -13,9 +13,20 @@ export function createProjectFromJob(job, dem, mesh) {
 
   const title = generateTitle(center, job.payload.detailLevel);
 
+  const sourceInfo = {
+    sources: dem.sources,
+    attribution: dem.attribution,
+    resolutionMeters: dem.resolutionMeters,
+    verticalExaggeration: job.payload.verticalExaggeration,
+    minElevation: mesh.minElevation,
+    maxElevation: mesh.maxElevation,
+  };
+
+  const terrainData = buildTerrainData(dem, mesh, job.payload);
+
   db.prepare(
-    `INSERT INTO projects (id, user_id, title, detail_level, bounds_json, center_json, source_info_json, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO projects (id, user_id, title, detail_level, bounds_json, center_json, source_info_json, terrain_data_json, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     job.userId,
@@ -23,19 +34,73 @@ export function createProjectFromJob(job, dem, mesh) {
     job.payload.detailLevel,
     JSON.stringify(job.payload.bounds),
     JSON.stringify(center),
-    JSON.stringify({
-      sources: dem.sources,
-      attribution: dem.attribution,
-      resolutionMeters: dem.resolutionMeters,
-      verticalExaggeration: job.payload.verticalExaggeration,
-      minElevation: mesh.minElevation,
-      maxElevation: mesh.maxElevation,
-    }),
+    JSON.stringify(sourceInfo),
+    JSON.stringify(terrainData),
     createdAt,
     createdAt
   );
 
   return { id, title };
+}
+
+export function updateProjectFromJob(projectId, job, dem, mesh) {
+  const db = getDb();
+  const center = {
+    lat: (job.payload.bounds.minLat + job.payload.bounds.maxLat) / 2,
+    lon: (job.payload.bounds.minLon + job.payload.bounds.maxLon) / 2,
+  };
+
+  const sourceInfo = {
+    sources: dem.sources,
+    attribution: dem.attribution,
+    resolutionMeters: dem.resolutionMeters,
+    verticalExaggeration: job.payload.verticalExaggeration,
+    minElevation: mesh.minElevation,
+    maxElevation: mesh.maxElevation,
+  };
+
+  const terrainData = buildTerrainData(dem, mesh, job.payload);
+
+  db.prepare(
+    `UPDATE projects SET bounds_json = ?, center_json = ?, source_info_json = ?, terrain_data_json = ?, updated_at = ? WHERE id = ?`
+  ).run(
+    JSON.stringify(job.payload.bounds),
+    JSON.stringify(center),
+    JSON.stringify(sourceInfo),
+    JSON.stringify(terrainData),
+    now(),
+    projectId
+  );
+
+  const row = db.prepare('SELECT title FROM projects WHERE id = ?').get(projectId);
+  return { id: projectId, title: row?.title || 'Terrain' };
+}
+
+function buildTerrainData(dem, mesh, payload) {
+  return {
+    mesh: {
+      width: mesh.width,
+      height: mesh.height,
+      grid: mesh.grid,
+      positions: mesh.positions,
+      normals: mesh.normals,
+      uvs: mesh.uvs,
+      colors: mesh.colors,
+      indices: mesh.indices,
+    },
+    originalBounds: dem.originalBounds || payload.bounds,
+    fetchBounds: dem.fetchBounds || payload.bounds,
+    wasExpanded: dem.wasExpanded || false,
+    minElevation: mesh.minElevation,
+    maxElevation: mesh.maxElevation,
+    resolutionMeters: dem.resolutionMeters,
+    verticalExaggeration: payload.verticalExaggeration,
+    sourceDescription: dem.sources?.includes('usgs-3dep')
+      ? 'USGS 3DEP high-resolution lidar DEM'
+      : dem.sources?.includes('opentopography')
+      ? 'OpenTopography global DEM'
+      : 'Open-Meteo SRTM/ASTER elevation (fallback)',
+  };
 }
 
 export function recordExport({ userId, projectId, format, filename, sizeBytes }) {

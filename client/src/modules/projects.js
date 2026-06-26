@@ -35,7 +35,31 @@ export async function selectProject(project) {
       store.set({ bounds: data.project.bounds, center: data.project.center });
       setBounds(data.project.bounds);
     }
-    navigate('map');
+
+    if (data.project.terrainData) {
+      store.set({ currentTerrain: data.project.terrainData });
+      navigate('studio');
+      requestAnimationFrame(() => {
+        import('./viewport.js').then(({ setTerrain, drawSelectionOutline }) => {
+          const rotation = store.get('rotation') || 0;
+          setTerrain(data.project.terrainData.mesh, rotation);
+          if (data.project.terrainData.originalBounds && data.project.terrainData.fetchBounds) {
+            drawSelectionOutline(data.project.terrainData.originalBounds, data.project.terrainData.fetchBounds);
+          }
+          const stats = document.getElementById('stats');
+          if (stats) {
+            const range = (data.project.terrainData.maxElevation - data.project.terrainData.minElevation).toFixed(1);
+            stats.innerHTML = `<b>${data.project.terrainData.mesh.width} × ${data.project.terrainData.mesh.height}</b> vertices · <b>${range}</b> m range · <b>${data.project.terrainData.verticalExaggeration}×</b> vertical exaggeration`;
+          }
+          const elevLow = document.getElementById('elevLow');
+          const elevHigh = document.getElementById('elevHigh');
+          if (elevLow) elevLow.textContent = `${data.project.terrainData.minElevation.toFixed(0)}m`;
+          if (elevHigh) elevHigh.textContent = `${data.project.terrainData.maxElevation.toFixed(0)}m`;
+        });
+      });
+    } else {
+      navigate('map');
+    }
   } catch (e) {
     setStatus('Failed to load project: ' + e.message, 'error');
   }

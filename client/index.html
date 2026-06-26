@@ -68,7 +68,10 @@
     <!-- ===== MAP VIEW ===== -->
     <section class="view view-map hidden" id="view-map">
       <header class="app-header">
-        <button id="backToDashboardFromMap" class="ghost" title="Back to dashboard">← Dashboard</button>
+        <div class="header-left">
+          <button id="backToDashboardFromMap" class="ghost icon-btn" title="Back to dashboard">🏠</button>
+          <button id="saveBtnMap" class="ghost icon-btn" title="Save project">💾</button>
+        </div>
         <div class="project-title" id="projectTitle">No project</div>
         <div class="header-actions">
           <button id="themeBtn" class="ghost" title="Toggle theme">🌙</button>
@@ -145,10 +148,13 @@
     <!-- ===== STUDIO VIEW ===== -->
     <section class="view view-studio hidden" id="view-studio">
       <header class="app-header">
-        <button id="backToDashboard" class="ghost" title="Back to dashboard">← Dashboard</button>
+        <div class="header-left">
+          <button id="backToDashboard" class="ghost icon-btn" title="Back to dashboard">🏠</button>
+          <button id="editSiteBtn" class="ghost icon-btn" title="Edit site selection">🗺️</button>
+          <button id="saveBtnStudio" class="ghost icon-btn" title="Save project">💾</button>
+        </div>
         <div class="project-title" id="projectTitleStudio">No project</div>
         <div class="header-actions">
-          <button id="editSiteBtn" class="ghost" title="Edit site selection">Edit Site</button>
           <button id="themeBtnStudio" class="ghost" title="Toggle theme">🌙</button>
         </div>
       </header>

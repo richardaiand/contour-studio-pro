@@ -76,6 +76,45 @@ async function init() {
   // Edit Site button → back to map
   $('editSiteBtn')?.addEventListener('click', () => navigate('map'));
 
+  // Manual save buttons
+  async function manualSave() {
+    const project = store.get('currentProject');
+    if (!project?.id) {
+      setStatus('Nothing to save yet.', 'error');
+      return;
+    }
+    const bounds = store.get('bounds');
+    const center = store.get('center');
+    try {
+      await api(`/projects/${project.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ bounds, center }),
+      });
+      setStatus('Project saved.', 'ok');
+    } catch (e) {
+      setStatus('Save failed: ' + e.message, 'error');
+    }
+  }
+  $('saveBtnMap')?.addEventListener('click', manualSave);
+  $('saveBtnStudio')?.addEventListener('click', manualSave);
+
+  // Autosave on bounds/center change (debounced)
+  let autosaveTimer = null;
+  store.subscribe((state) => {
+    if (!state.currentProject?.id) return;
+    if (autosaveTimer) clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(async () => {
+      if (state.bounds) {
+        try {
+          await api(`/projects/${state.currentProject.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ bounds: state.bounds, center: state.center }),
+          });
+        } catch {}
+      }
+    }, 3000);
+  });
+
   // Studio map preview toggle — static tile image
   let studioMapInitialized = false;
   $('toggleMapPreview')?.addEventListener('click', () => {

@@ -234,19 +234,21 @@ async function generateTerrain() {
   try {
     const detailLevel = store.get('detail');
 
-    // If this is a new project (named but not yet saved), create it first
     const currentProject = store.get('currentProject');
+    let projectId = currentProject?.id;
+
     if (currentProject?.isNew) {
       const project = await api('/projects', {
         method: 'POST',
         body: JSON.stringify({ title: currentProject.title, detailLevel, bounds, center: store.get('center') }),
       });
       store.set({ currentProject: project });
+      projectId = project.id;
     }
 
     const response = await api('/jobs/terrain', {
       method: 'POST',
-      body: JSON.stringify({ bounds, detailLevel, verticalExaggeration: 1.5 }),
+      body: JSON.stringify({ bounds, detailLevel, verticalExaggeration: 1.5, projectId }),
     });
 
     const jobId = response.jobId;
@@ -311,7 +313,7 @@ async function pollJob(jobId) {
     }
 
     if (job.progress > 0) {
-      setLoading(true, `Generating terrain… ${job.progress}%`);
+      setLoading(true, 'Generating terrain…');
     }
     await sleep(1500);
   }

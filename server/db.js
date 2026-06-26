@@ -130,7 +130,14 @@ export function runMigrations() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_map_sources_country ON map_sources(country_code, is_active);
-  `);
+   `);
+
+  // Add terrain_data_json column to projects if it doesn't exist
+  const columns = database.prepare("PRAGMA table_info(projects)").all();
+  if (!columns.find((c) => c.name === 'terrain_data_json')) {
+    database.exec('ALTER TABLE projects ADD COLUMN terrain_data_json TEXT');
+    console.log('Added terrain_data_json column to projects');
+  }
 
   console.log('Database tables created/verified');
 }
