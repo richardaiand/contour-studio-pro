@@ -107,7 +107,7 @@ export async function fetchDemForBounds(bounds, detailLevel = 'standard') {
 }
 
 export function selectSourceDescription(sources, detailLevel) {
-  if (sources.includes('usgs-3dep')) return 'USGS 3DEP high-resolution lidar DEM';
+  if (sources.includes('usgs-3dep')) return 'USGS 3DEP high-resolution DEM (10m)';
   if (sources.includes('opentopography')) return 'OpenTopography global DEM';
   if (sources.includes('open-meteo')) return 'Open-Meteo SRTM/ASTER elevation (fallback)';
   return 'Unknown source';

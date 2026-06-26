@@ -22,8 +22,12 @@ export async function fetchElevation(bounds, detail) {
 
   for (let i = 0; i < points.length; i += chunkSize) {
     const chunk = points.slice(i, i + chunkSize);
+    const lats = chunk.map((p) => p.split(',')[0]).join(',');
+    const lons = chunk.map((p) => p.split(',')[1]).join(',');
+
     const url = new URL(ENDPOINT);
-    url.searchParams.set('locations', chunk.join('|'));
+    url.searchParams.set('latitude', lats);
+    url.searchParams.set('longitude', lons);
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000);

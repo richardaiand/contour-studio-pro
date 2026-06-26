@@ -6,7 +6,7 @@ const ENDPOINT = 'https://portal.opentopography.org/API/globaldem';
 const DATASETS = {
   draft: 'SRTMGL3',
   standard: 'SRTMGL1',
-  survey: 'USGS1m',
+  survey: 'USGS10m',
 };
 
 export async function fetchDem(bounds, detail) {
@@ -59,14 +59,14 @@ export async function fetchDem(bounds, detail) {
 
   // Nominal source resolution: USGS 3DEP 1m, SRTM GL1 ~30m, SRTM GL3 ~90m
   const nominalResolution =
-    dataset === 'USGS1m' ? 1 : dataset === 'SRTMGL1' ? 30 : 90;
+    dataset === 'USGS10m' ? 10 : dataset === 'SRTMGL1' ? 30 : 90;
 
   return {
     width: targetSize,
     height: targetSize,
     grid: finalGrid,
     resolutionMeters: nominalResolution,
-    source: dataset === 'USGS1m' ? 'usgs-3dep' : 'opentopography',
+    source: dataset === 'USGS10m' ? 'usgs-3dep' : 'opentopography',
     attribution: `Elevation data by OpenTopography (${dataset})`,
   };
 }
