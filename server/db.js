@@ -1,8 +1,13 @@
 import Database from 'better-sqlite3';
 import { readFileSync, mkdirSync } from 'fs';
-import { dirname, resolve } from 'path';
+import { dirname, resolve, join } from 'path';
+import { fileURLToPath } from 'url';
 import { config } from './config.js';
 import { randomUUID } from 'crypto';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const migrationsDir = resolve(__dirname, '../migrations');
 
 const dbPath = config.databaseUrl.startsWith('./') || config.databaseUrl.startsWith('/')
   ? resolve(config.databaseUrl)
@@ -38,20 +43,25 @@ export function runMigrations() {
   );
 
   const migrations = [
-    { id: '001_init', file: resolve('migrations/001_init.sql') },
-    { id: '002_jobs_payload', file: resolve('migrations/002_jobs_payload.sql') },
-    { id: '003_exports', file: resolve('migrations/003_exports.sql') },
+    { id: '001_init', file: join(migrationsDir, '001_init.sql') },
+    { id: '002_jobs_payload', file: join(migrationsDir, '002_jobs_payload.sql') },
+    { id: '003_exports', file: join(migrationsDir, '003_exports.sql') },
   ];
 
   for (const migration of migrations) {
     if (applied.has(migration.id)) continue;
-    const sql = readFileSync(migration.file, 'utf8');
-    database.exec(sql);
-    database.prepare('INSERT INTO migrations (id, applied_at) VALUES (?, ?)').run(
-      migration.id,
-      Date.now()
-    );
-    console.log(`Applied migration ${migration.id}`);
+    try {
+      const sql = readFileSync(migration.file, 'utf8');
+      database.exec(sql);
+      database.prepare('INSERT INTO migrations (id, applied_at) VALUES (?, ?)').run(
+        migration.id,
+        Date.now()
+      );
+      console.log(`Applied migration ${migration.id}`);
+    } catch (err) {
+      console.error(`Migration ${migration.id} failed:`, err.message);
+      throw err;
+    }
   }
 }
 

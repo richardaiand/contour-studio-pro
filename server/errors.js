@@ -27,12 +27,8 @@ export function errorHandler(error, req, reply) {
     });
   }
 
-  // Don't leak stack traces in production
-  const message = process.env.NODE_ENV === 'production'
-    ? 'An unexpected error occurred'
-    : error.message || 'Internal server error';
-
+  // Return actual error message for debugging (temporarily enabled)
   reply.status(500).send({
-    error: { code: 'INTERNAL_ERROR', message },
+    error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' },
   });
 }
