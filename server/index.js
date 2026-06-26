@@ -130,6 +130,16 @@ async function buildServer() {
       prefix: '/',
       wildcard: false,
       decorateReply: true,
+      setHeaders: (res, path) => {
+        // Never cache the HTML entry point; hashed assets can be cached forever
+        if (path.endsWith('index.html')) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+        } else {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      },
     });
 
     fastify.setNotFoundHandler((req, reply) => {

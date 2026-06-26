@@ -557,6 +557,12 @@ async function reverseGeocode(lat, lon) {
   }
 }
 
+export function resizeMap() {
+  if (map) {
+    map.resize();
+  }
+}
+
 export function setBounds(bounds) {
   if (!map || !bounds) return;
   map.fitBounds(
