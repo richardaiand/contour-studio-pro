@@ -50,8 +50,13 @@ export function renderDashboard(projects) {
     return;
   }
 
-  if (!projects || projects.length === 0) {
-    grid.innerHTML = '<div class="hint">No projects yet. Click "New Project" to get started.</div>';
+  if (!projects) {
+    grid.innerHTML = '<div class="hint">Create your first project to get started.</div>';
+    return;
+  }
+
+  if (projects.length === 0) {
+    grid.innerHTML = '<div class="hint">Create your first project to get started.</div>';
     return;
   }
 

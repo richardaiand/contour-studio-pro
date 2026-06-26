@@ -26,8 +26,13 @@ export default async function (fastify) {
     const user = await createUser(username, password);
     const token = signToken({ userId: user.id, username: user.username });
 
-    reply.setCookie('token', token, { maxAge: 60 * 60 * 24 * 7 });
-    return { user, token, settings: getUserSettings(user.id) };
+    reply.setCookie('token', token, {
+      maxAge: 60 * 60 * 24 * 7,
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+    });
+    return { user, token, settings: getUserSettings(user.id) });
   });
 
   fastify.post('/signin', async (req, reply) => {
@@ -35,12 +40,17 @@ export default async function (fastify) {
     const user = await authenticateUser(username, password);
     const token = signToken({ userId: user.id, username: user.username });
 
-    reply.setCookie('token', token, { maxAge: 60 * 60 * 24 * 7 });
+    reply.setCookie('token', token, {
+      maxAge: 60 * 60 * 24 * 7,
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+    });
     return { user, token, settings: getUserSettings(user.id) };
   });
 
   fastify.post('/signout', async (req, reply) => {
-    reply.clearCookie('token');
+    reply.clearCookie('token', { path: '/' });
     return { ok: true };
   });
 

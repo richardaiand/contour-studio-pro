@@ -101,11 +101,17 @@ async function init() {
   });
 
   // Restore session
+  const hasCookie = document.cookie.includes('token=');
+  if (hasCookie) {
+    // Show dashboard immediately while session restores
+    setInitialView(true);
+  }
   const session = await restoreSession();
-  setInitialView(!!session);
-
   if (session) {
+    setInitialView(true);
     setStatus('Ready. Search for a location to begin.', '');
+  } else {
+    setInitialView(false);
   }
 }
 

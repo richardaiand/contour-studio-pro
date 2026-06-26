@@ -60,8 +60,8 @@ export async function restoreSession() {
       setAuth(data);
       return data;
     }
-  } catch {
-    // Not signed in
+  } catch (err) {
+    console.warn('Session restore failed:', err.message);
   }
   return null;
 }
