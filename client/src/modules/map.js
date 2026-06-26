@@ -140,13 +140,13 @@ export function initMap() {
       if (!center) return;
       const local = lonLatToLocalMeters(center, e.lngLat.lat, e.lngLat.lng);
       const angle = Math.atan2(local.dy, local.dx);
-      const target = ((angle * 180) / Math.PI + 90 + 360) % 360;
-      // Smooth toward target for less jittery rotation
+      // Handle sits at top (north) at rotation 0; mouse angle maps directly
+      const target = ((90 - (angle * 180) / Math.PI) % 360 + 360) % 360;
       const current = store.get('rotation') || 0;
       let diff = target - current;
       if (diff > 180) diff -= 360;
       if (diff < -180) diff += 360;
-      const rotation = ((current + diff * 0.4) % 360 + 360) % 360;
+      const rotation = ((current + diff * 0.5) % 360 + 360) % 360;
       setRotation(rotation);
       return;
     }
@@ -303,9 +303,9 @@ function handlePosition(center, sizeMeters, rotation) {
   const half = sizeMeters / 2;
   const distance = half + HANDLE_DISTANCE_METERS;
   const rad = (rotation * Math.PI) / 180;
-  // Top-center in local coords is (0, -distance); rotate by rad.
-  const dx = -distance * Math.sin(rad);
-  const dy = -distance * Math.cos(rad);
+  // Handle sits at top (north) when rotation=0, rotates with the box
+  const dx = distance * Math.sin(rad);
+  const dy = distance * Math.cos(rad);
   return localMetersToLonLat(center, dx, dy);
 }
 
