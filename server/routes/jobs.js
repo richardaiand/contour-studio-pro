@@ -33,7 +33,7 @@ export default async function (fastify) {
     }
 
     const job = createJob({
-      userId: req.user.id,
+      userId: req.user.userId,
       type: 'terrain:generate',
       payload: { bounds, detailLevel, verticalExaggeration },
     });
@@ -46,7 +46,7 @@ export default async function (fastify) {
     onRequest: [fastify.authenticate],
   }, async (req) => {
     const job = getJob(req.params.id);
-    if (!job || job.userId !== req.user.id) {
+    if (!job || job.userId !== req.user.userId) {
       throw new AppError('Job not found', 404, 'NOT_FOUND');
     }
     return job;
@@ -56,6 +56,6 @@ export default async function (fastify) {
   fastify.get('/', {
     onRequest: [fastify.authenticate],
   }, async (req) => {
-    return listJobsForUser(req.user.id);
+    return listJobsForUser(req.user.userId);
   });
 }

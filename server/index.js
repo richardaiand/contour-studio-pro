@@ -65,16 +65,21 @@ async function buildServer() {
   // Health check
   fastify.get('/health', async () => ({ status: 'ok', version: '0.1.0' }));
 
-  // Debug endpoint — shows DB and filesystem status
-  fastify.get('/api/debug', async () => {
+  // Debug endpoint — tests DB and auth
+  fastify.get('/api/debug', {
+    onRequest: [fastify.authenticate],
+  }, async (req) => {
     const { getDb } = await import('./db.js');
     const { config } = await import('./config.js');
-    const { existsSync, statSync } = await import('fs');
+    const { existsSync } = await import('fs');
     const info = {
       databaseUrl: config.databaseUrl,
       dbFileExists: false,
       dbWritable: false,
       tables: [],
+      user: req.user,
+      projectsQuery: null,
+      exportsQuery: null,
       error: null,
     };
     try {
@@ -82,6 +87,16 @@ async function buildServer() {
       const db = getDb();
       info.tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name);
       info.dbWritable = true;
+      try {
+        info.projectsQuery = db.prepare('SELECT * FROM projects WHERE user_id = ?').all(req.user.userId);
+      } catch (e) {
+        info.projectsQuery = { error: e.message };
+      }
+      try {
+        info.exportsQuery = db.prepare('SELECT * FROM exports WHERE user_id = ?').all(req.user.userId);
+      } catch (e) {
+        info.exportsQuery = { error: e.message };
+      }
     } catch (err) {
       info.error = err.message;
     }
