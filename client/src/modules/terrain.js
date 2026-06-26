@@ -258,11 +258,14 @@ async function generateTerrain() {
     const data = await pollJob(jobId);
 
     store.set({ currentTerrain: data, currentProject: { id: data.projectId, title: data.projectTitle } });
-    setTerrain(data.mesh);
-    if (data.wasExpanded && data.originalBounds) {
-      drawSelectionOutline(data.originalBounds, data.fetchBounds);
-    }
-    updateStats(data);
+    navigate('studio');
+    requestAnimationFrame(() => {
+      setTerrain(data.mesh);
+      if (data.wasExpanded && data.originalBounds) {
+        drawSelectionOutline(data.originalBounds, data.fetchBounds);
+      }
+      updateStats(data);
+    });
     setLoading(false);
     const sizeLabel = formatSizeLabel();
     let statusMsg = `${data.sourceDescription || 'Terrain'} · ${sizeLabel} · ${data.resolutionMeters}m resolution`;
