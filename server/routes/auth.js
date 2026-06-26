@@ -32,7 +32,7 @@ export default async function (fastify) {
       httpOnly: true,
       sameSite: 'lax',
     });
-    return { user, token, settings: getUserSettings(user.id) });
+    return { user, token, settings: getUserSettings(user.id) };
   });
 
   fastify.post('/signin', async (req, reply) => {
