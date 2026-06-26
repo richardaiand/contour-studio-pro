@@ -110,12 +110,17 @@ async function handleAddressInput(e) {
     return;
   }
 
+  // Keep existing suggestions visible while fetching new ones
   try {
-    suggestions = await fetchSuggestions(query);
-    suggestionIndex = -1;
-    renderSuggestions();
+    const newSuggestions = await fetchSuggestions(query);
+    // Only update if the input still matches (user didn't type more)
+    if ($('addressInput').value.trim() === query) {
+      suggestions = newSuggestions;
+      suggestionIndex = -1;
+      renderSuggestions();
+    }
   } catch (err) {
-    hideSuggestions();
+    // Don't hide on error — keep old suggestions visible
   }
 }
 
