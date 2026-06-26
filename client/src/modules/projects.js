@@ -1,13 +1,11 @@
 import { $, api, escapeHtml } from '../utils.js';
 import { store, setStatus } from '../store/index.js';
 import { setBounds } from './map.js';
+import { navigate } from '../router.js';
 
 export function initProjects() {
-  $('newProjectBtn')?.addEventListener('click', createProject);
-  $('newProjectBtnStudio')?.addEventListener('click', createProject);
-
   store.subscribe((state) => {
-    renderProjectList(state.projects, state.currentProject);
+    renderDashboard(state.projects);
     renderExportList(state.exports);
   });
 }
@@ -29,26 +27,6 @@ export async function loadProjects() {
   }
 }
 
-async function createProject() {
-  if (!store.get('user')) {
-    setStatus('Sign in to save projects.', 'error');
-    return;
-  }
-  const title = prompt('Project title:', 'New Terrain Project');
-  if (!title) return;
-
-  try {
-    const project = await api('/projects', {
-      method: 'POST',
-      body: JSON.stringify({ title, detailLevel: store.get('detail') }),
-    });
-    store.set({ currentProject: project, projects: [project, ...store.get('projects')] });
-    setStatus('Project created.', 'ok');
-  } catch (e) {
-    setStatus('Failed to create project: ' + e.message, 'error');
-  }
-}
-
 export async function selectProject(project) {
   try {
     const data = await api(`/projects/${project.id}`);
@@ -57,85 +35,93 @@ export async function selectProject(project) {
       store.set({ bounds: data.project.bounds, center: data.project.center });
       setBounds(data.project.bounds);
     }
-    setStatus(`Loaded ${data.project.title}`, 'ok');
+    navigate('map');
   } catch (e) {
     setStatus('Failed to load project: ' + e.message, 'error');
   }
 }
 
-function renderProjectList(projects, currentProject) {
-  const lists = [document.getElementById('projectList'), document.getElementById('projectListStudio')].filter(Boolean);
-  if (lists.length === 0) return;
+export function renderDashboard(projects) {
+  const grid = $('projectGrid');
+  if (!grid) return;
 
   if (!store.get('user')) {
-    lists.forEach(list => list.innerHTML = '<div class="hint">Sign in to save and manage projects.</div>');
+    grid.innerHTML = '<div class="hint">Sign in to see your projects.</div>';
     return;
   }
 
-  if (projects.length === 0) {
-    lists.forEach(list => list.innerHTML = '<div class="hint">No projects yet.</div>');
+  if (!projects || projects.length === 0) {
+    grid.innerHTML = '<div class="hint">No projects yet. Click "New Project" to get started.</div>';
     return;
   }
 
-  lists.forEach(list => {
-    list.innerHTML = '';
-    projects.forEach((p) => {
-      const item = document.createElement('div');
-      item.className = 'project-item' + (currentProject?.id === p.id ? ' active' : '');
-      item.innerHTML = `
-        <span>${escapeHtml(p.title)}</span>
-        <button class="ghost sm delete-project" data-id="${p.id}" title="Delete">×</button>
-      `;
-      item.addEventListener('click', (e) => {
-        if (e.target.closest('.delete-project')) {
-          e.stopPropagation();
-          deleteProject(p);
-        } else {
-          selectProject(p);
-        }
-      });
-      list.appendChild(item);
+  grid.innerHTML = '';
+  projects.forEach((p) => {
+    const card = document.createElement('div');
+    card.className = 'project-card';
+    card.innerHTML = `
+      <div class="project-card-thumb">⛰️</div>
+      <div class="project-card-body">
+        <div class="project-card-title">${escapeHtml(p.title)}</div>
+        <div class="project-card-meta">
+          <span>${formatDate(p.updatedAt)}</span>
+          <button class="ghost sm project-card-delete" data-id="${p.id}" title="Delete">🗑</button>
+        </div>
+      </div>
+    `;
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.project-card-delete')) {
+        e.stopPropagation();
+        deleteProject(p);
+      } else {
+        selectProject(p);
+      }
     });
+    grid.appendChild(card);
   });
+}
+
+function formatDate(timestamp) {
+  if (!timestamp) return '';
+  const d = new Date(timestamp);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 60000) return 'Just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
+  return d.toLocaleDateString();
 }
 
 async function deleteProject(project) {
   if (!confirm(`Delete "${project.title}"?`)) return;
   try {
     await api(`/projects/${project.id}`, { method: 'DELETE' });
-    const projects = store.get('projects').filter((p) => p.id !== project.id);
-    store.set({ projects, currentProject: null });
+    const projects = store.get('projects').filter(p => p.id !== project.id);
+    store.set({ projects });
     setStatus('Project deleted.', 'ok');
   } catch (e) {
     setStatus('Failed to delete project: ' + e.message, 'error');
   }
 }
 
-function renderExportList(exports = []) {
+function renderExportList(exports) {
   const list = $('exportList');
-  if (!store.get('user')) {
-    list.innerHTML = '<div class="hint">Sign in to see export history.</div>';
-    return;
-  }
+  if (!list) return;
 
-  if (exports.length === 0) {
+  if (!exports || exports.length === 0) {
     list.innerHTML = '<div class="hint">No exports yet.</div>';
     return;
   }
 
   list.innerHTML = '';
-  exports.slice(0, 20).forEach((x) => {
+  exports.forEach((e) => {
     const item = document.createElement('div');
     item.className = 'project-item';
-    const size = formatBytes(x.sizeBytes);
-    item.innerHTML = `<span>${escapeHtml(x.filename)} · ${x.format.toUpperCase()} · ${size}</span>`;
+    item.innerHTML = `
+      <span>${escapeHtml(e.filename)}.${e.format}</span>
+      <small>${formatDate(e.createdAt)}</small>
+    `;
     list.appendChild(item);
   });
-}
-
-function formatBytes(bytes) {
-  if (!bytes) return '0 B';
-  const sizes = ['B', 'KB', 'MB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / 1024 ** i).toFixed(i === 0 ? 0 : 1)} ${sizes[i]}`;
 }

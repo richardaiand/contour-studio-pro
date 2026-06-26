@@ -233,6 +233,17 @@ async function generateTerrain() {
 
   try {
     const detailLevel = store.get('detail');
+
+    // If this is a new project (named but not yet saved), create it first
+    const currentProject = store.get('currentProject');
+    if (currentProject?.isNew) {
+      const project = await api('/projects', {
+        method: 'POST',
+        body: JSON.stringify({ title: currentProject.title, detailLevel, bounds, center: store.get('center') }),
+      });
+      store.set({ currentProject: project });
+    }
+
     const response = await api('/jobs/terrain', {
       method: 'POST',
       body: JSON.stringify({ bounds, detailLevel, verticalExaggeration: 1.5 }),

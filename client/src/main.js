@@ -3,7 +3,7 @@ import { store, setStatus } from './store/index.js';
 import { initTheme, applyTheme } from './modules/theme.js';
 import { initAuth, restoreSession } from './modules/auth.js';
 import { initSettings } from './modules/settings.js';
-import { initProjects, loadProjects } from './modules/projects.js';
+import { initProjects, loadProjects, renderDashboard } from './modules/projects.js';
 import { initMap } from './modules/map.js';
 import { initViewport } from './modules/viewport.js';
 import { initTerrain } from './modules/terrain.js';
@@ -37,20 +37,12 @@ async function init() {
     if (titleStudioEl) titleStudioEl.textContent = state.currentProject?.title || 'No project';
   });
 
-  $('sidebarToggle')?.addEventListener('click', () => {
-    $('sidebar')?.classList.toggle('collapsed');
-  });
-
-  $('projectsToggle')?.addEventListener('click', () => {
-    $('projectsPanel')?.classList.toggle('collapsed');
-  });
-
-  $('studioSidebarToggle')?.addEventListener('click', () => {
-    $('studioSidebar')?.classList.toggle('collapsed');
-  });
+  // Sidebar toggles
+  $('sidebarToggle')?.addEventListener('click', () => $('sidebar')?.classList.toggle('collapsed'));
+  $('studioSidebarToggle')?.addEventListener('click', () => $('studioSidebar')?.classList.toggle('collapsed'));
 
   // Theme buttons on all views
-  ['themeBtn', 'themeBtnStudio', 'themeBtnLogin'].forEach((id) => {
+  ['themeBtn', 'themeBtnStudio', 'themeBtnLogin', 'themeBtnDashboard'].forEach((id) => {
     const btn = $(id);
     if (btn) {
       btn.addEventListener('click', () => {
@@ -62,17 +54,50 @@ async function init() {
     }
   });
 
-  // Auth buttons on all views
-  ['authBtn', 'authBtnStudio'].forEach((id) => {
+  // Settings buttons
+  ['settingsBtn', 'settingsBtnDashboard'].forEach((id) => {
+    $(id)?.addEventListener('click', () => $('settingsDlg')?.showModal());
+  });
+
+  // Sign out buttons on all views
+  ['authBtn', 'authBtnStudio', 'authBtnDashboard'].forEach((id) => {
     const btn = $(id);
     if (btn) {
       btn.addEventListener('click', () => {
-        store.set({ user: null, settings: null });
+        store.set({ user: null, settings: null, currentProject: null });
         document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
         setStatus('Signed out.', '');
         navigate('login');
       });
     }
+  });
+
+  // Edit Site button → back to map
+  $('editSiteBtn')?.addEventListener('click', () => navigate('map'));
+
+  // Dashboard new project button
+  $('newProjectBtnDashboard')?.addEventListener('click', () => {
+    $('projectNameDlg')?.showModal();
+    $('projectNameInput')?.focus();
+  });
+
+  // Project naming modal
+  $('projectNameCancel')?.addEventListener('click', () => $('projectNameDlg')?.close());
+  $('projectNameConfirm')?.addEventListener('click', () => {
+    const name = $('projectNameInput').value.trim();
+    if (!name) {
+      $('projectNameError').textContent = 'Please enter a name.';
+      return;
+    }
+    $('projectNameError').textContent = '';
+    $('projectNameDlg')?.close();
+    store.set({ currentProject: { title: name, isNew: true } });
+    $('projectNameInput').value = '';
+    navigate('map');
+  });
+
+  $('projectNameInput')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $('projectNameConfirm')?.click();
   });
 
   // Restore session

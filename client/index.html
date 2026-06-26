@@ -34,8 +34,8 @@
       </div>
     </section>
 
-    <!-- ===== MAP VIEW ===== -->
-    <section class="view view-map hidden" id="view-map">
+    <!-- ===== DASHBOARD VIEW ===== -->
+    <section class="view view-dashboard hidden" id="view-dashboard">
       <header class="app-header">
         <div class="brand">
           <span class="logo">⛰️</span>
@@ -43,10 +43,32 @@
             <strong>Contour Studio</strong>
           </div>
         </div>
+        <div class="spacer"></div>
+        <div class="header-actions">
+          <button id="themeBtnDashboard" class="ghost" title="Toggle theme">🌙</button>
+          <button id="settingsBtnDashboard" class="ghost">Settings</button>
+          <button id="authBtnDashboard" class="ghost">Sign out</button>
+        </div>
+      </header>
+
+      <main class="dashboard-main">
+        <div class="dashboard-header">
+          <h1>Your Projects</h1>
+          <button id="newProjectBtnDashboard" class="primary">+ New Project</button>
+        </div>
+        <div id="projectGrid" class="project-grid">
+          <div class="hint">Loading projects…</div>
+        </div>
+      </main>
+    </section>
+
+    <!-- ===== MAP VIEW ===== -->
+    <section class="view view-map hidden" id="view-map">
+      <header class="app-header">
+        <button id="backToDashboardFromMap" class="ghost" title="Back to dashboard">← Dashboard</button>
         <div class="project-title" id="projectTitle">No project</div>
         <div class="header-actions">
           <button id="themeBtn" class="ghost" title="Toggle theme">🌙</button>
-          <button id="settingsBtn" class="ghost">Settings</button>
           <button id="authBtn" class="ghost">Sign out</button>
         </div>
       </header>
@@ -104,7 +126,7 @@
             <div class="panel">
               <h2>Exports</h2>
               <div id="exportList" class="project-list">
-                <div class="hint">Sign in to see export history.</div>
+                <div class="hint">No exports yet.</div>
               </div>
             </div>
           </div>
@@ -113,30 +135,17 @@
         <section class="viewport-map">
           <div id="map" class="map-view"></div>
         </section>
-
-        <aside class="projects-panel" id="projectsPanel">
-          <button id="projectsToggle" class="panel-toggle" title="Collapse projects">›</button>
-          <div class="projects-content">
-            <div class="panel">
-              <h2>Projects</h2>
-              <button id="newProjectBtn" class="sm primary">+ New</button>
-              <div id="projectList" class="project-list">
-                <div class="hint">Sign in to save projects.</div>
-              </div>
-            </div>
-          </div>
-        </aside>
       </main>
     </section>
 
     <!-- ===== STUDIO VIEW ===== -->
     <section class="view view-studio hidden" id="view-studio">
       <header class="app-header">
-        <button id="backToMap" class="ghost" title="Back to map">← Back</button>
+        <button id="backToDashboard" class="ghost" title="Back to dashboard">← Dashboard</button>
         <div class="project-title" id="projectTitleStudio">No project</div>
         <div class="header-actions">
+          <button id="editSiteBtn" class="ghost" title="Edit site selection">Edit Site</button>
           <button id="themeBtnStudio" class="ghost" title="Toggle theme">🌙</button>
-          <button id="authBtnStudio" class="ghost">Sign out</button>
         </div>
       </header>
 
@@ -169,14 +178,6 @@
               </div>
               <button id="clearObjects" class="secondary full">Clear All Objects</button>
             </div>
-
-            <div class="panel">
-              <h2>Projects</h2>
-              <button id="newProjectBtnStudio" class="sm primary">+ New</button>
-              <div id="projectListStudio" class="project-list">
-                <div class="hint">No projects.</div>
-              </div>
-            </div>
           </div>
         </aside>
 
@@ -199,6 +200,18 @@
       <canvas id="walkCanvas" class="walk-canvas"></canvas>
     </section>
   </div>
+
+  <!-- In-app project naming modal -->
+  <dialog id="projectNameDlg">
+    <h3 id="projectNameTitle">New Project</h3>
+    <label for="projectNameInput">Project Name</label>
+    <input id="projectNameInput" type="text" placeholder="My Site Project" autocomplete="off" />
+    <div id="projectNameError" class="error-text"></div>
+    <div class="dlg-actions">
+      <button id="projectNameCancel" class="ghost">Cancel</button>
+      <button id="projectNameConfirm" class="primary">Create</button>
+    </div>
+  </dialog>
 
   <!-- Settings dialog (shared) -->
   <dialog id="settingsDlg">

@@ -1,9 +1,9 @@
 // Simple client-side router for multi-page layout
-// Switches between views: login, map, studio, walk
+// Switches between views: login, dashboard, map, studio, walk
 
 import { store } from './store/index.js';
 
-const VIEWS = ['login', 'map', 'studio', 'walk'];
+const VIEWS = ['login', 'dashboard', 'map', 'studio', 'walk'];
 let currentView = 'login';
 let navigationHistory = [];
 
@@ -11,6 +11,8 @@ export function initRouter() {
   // Wire up navigation buttons
   document.getElementById('backToMap')?.addEventListener('click', () => goBack());
   document.getElementById('exitWalk')?.addEventListener('click', () => goBack());
+  document.getElementById('backToDashboard')?.addEventListener('click', () => navigate('dashboard'));
+  document.getElementById('backToDashboardFromMap')?.addEventListener('click', () => navigate('dashboard'));
 
   // Subscribe to store view changes
   store.subscribe((state) => {
@@ -32,7 +34,7 @@ export function navigate(view) {
 
 export function goBack() {
   if (navigationHistory.length === 0) {
-    currentView = 'map';
+    currentView = 'dashboard';
   } else {
     currentView = navigationHistory.pop();
   }
@@ -51,8 +53,13 @@ function renderView() {
   const el = document.getElementById(`view-${currentView}`);
   if (el) el.classList.remove('hidden');
 
-  // Trigger resize so map/canvas redraws
+  // Trigger resize for map/canvas after view becomes visible
   window.dispatchEvent(new Event('resize'));
+
+  // Studio view needs extra time for canvas to get dimensions
+  if (currentView === 'studio') {
+    import('./modules/viewport.js').then(({ triggerResize }) => triggerResize());
+  }
 }
 
 export function getCurrentView() {
@@ -64,7 +71,7 @@ export function canGoBack() {
 }
 
 export function setInitialView(isAuthenticated) {
-  currentView = isAuthenticated ? 'map' : 'login';
+  currentView = isAuthenticated ? 'dashboard' : 'login';
   navigationHistory = [];
   renderView();
   store.set({ currentView });

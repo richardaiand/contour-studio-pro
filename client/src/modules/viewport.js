@@ -132,6 +132,12 @@ function resize() {
   camera.updateProjectionMatrix();
 }
 
+// Allow external code to trigger resize when view changes
+export function triggerResize() {
+  setTimeout(resize, 50);
+  setTimeout(resize, 200);
+}
+
 function animate() {
   requestAnimationFrame(animate);
   if (controls) controls.update();
