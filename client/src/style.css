@@ -736,13 +736,14 @@ button.full {
 
 .exports {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   align-items: center;
   margin-top: 8px;
 }
 
 .exports input {
-  width: 120px;
+  width: 100%;
   background: var(--bg);
   border: 1px solid var(--panel-border);
   color: var(--text);

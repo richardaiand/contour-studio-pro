@@ -71,6 +71,11 @@ function cssColor(name) {
 }
 
 export function setTerrain(meshData) {
+  if (!scene || !renderer) {
+    initViewport();
+  }
+  if (!scene) return;
+
   if (terrainMesh) {
     scene.remove(terrainMesh);
     terrainMesh.geometry.dispose();
@@ -112,6 +117,7 @@ export function setTerrain(meshData) {
   camera.position.set(center.x + dist * 0.6, center.y + dist * 0.4, center.z + dist * 0.8);
   controls.target.copy(center);
   controls.update();
+  triggerResize();
 }
 
 export function clearTerrain() {
