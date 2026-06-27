@@ -4,6 +4,7 @@ import { now } from '../../utils/index.js';
 import { claimPendingJob, updateJob } from './db.js';
 import { fetchDemForBounds, selectSourceDescription } from '../dem/router.js';
 import { gridToMesh } from '../terrain/mesh.js';
+import { cleanupMesh } from '../terrain/cleanup.js';
 import { createProjectFromJob, updateProjectFromJob } from '../projects/db.js';
 
 const PROCESSORS = {
@@ -90,6 +91,13 @@ async function processTerrainJob(job, setProgress) {
   // so the terrain covers the full data area
   const meshBounds = dem.fetchBounds || bounds;
   const mesh = gridToMesh(dem.grid, meshBounds, { verticalExaggeration });
+
+  // V2.4: Clean up mesh geometry (remove degenerate triangles, weld duplicates)
+  const cleaned = cleanupMesh(mesh.positions, mesh.normals, mesh.indices);
+  mesh.positions = cleaned.positions;
+  mesh.normals = cleaned.normals;
+  mesh.indices = cleaned.indices;
+  console.log(`Mesh cleanup: removed ${cleaned.removedDegenerate} degenerate triangles, merged ${cleaned.mergedVertices} duplicate vertices`);
 
   setProgress(95);
   const project = job.payload.projectId

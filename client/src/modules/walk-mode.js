@@ -1,67 +1,203 @@
-// V4: First-person walk mode
-// TODO: PointerLockControls for mouse look
-// TODO: WASD movement
-// TODO: Height-based collision with terrain
-// TODO: Esc to exit back to orbit view
-
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 
 let walkControls = null;
-let walkCamera = null;
 let isWalking = false;
+let walkAnimId = null;
+let lastTime = 0;
 const moveState = { forward: false, backward: false, left: false, right: false };
+const MOVE_SPEED = 8;
+const EYE_HEIGHT = 1.65;
+let terrainMeshRef = null;
+let cameraRef = null;
+let rendererRef = null;
+let orbitControlsRef = null;
+let walkHud = null;
+let onKeyDownRef = null;
+let onKeyUpRef = null;
 
-export function initWalkMode(scene, camera, renderer, terrainMesh) {
-  // TODO: Create PointerLockControls
-  // TODO: Add keydown/keyup listeners for WASD
-  // TODO: Add animation loop for movement
+export function initWalkMode(scene, camera, renderer, terrainMesh, orbitControls) {
+  terrainMeshRef = terrainMesh;
+  cameraRef = camera;
+  rendererRef = renderer;
+  orbitControlsRef = orbitControls;
+
+  walkHud = document.getElementById('walkHudOverlay');
+
+  onKeyDownRef = (e) => {
+    if (!isWalking) return;
+    switch (e.code) {
+      case 'KeyW': case 'ArrowUp': moveState.forward = true; break;
+      case 'KeyS': case 'ArrowDown': moveState.backward = true; break;
+      case 'KeyA': case 'ArrowLeft': moveState.left = true; break;
+      case 'KeyD': case 'ArrowRight': moveState.right = true; break;
+      case 'Escape': exitWalkMode(); break;
+    }
+  };
+
+  onKeyUpRef = (e) => {
+    if (!isWalking) return;
+    switch (e.code) {
+      case 'KeyW': case 'ArrowUp': moveState.forward = false; break;
+      case 'KeyS': case 'ArrowDown': moveState.backward = false; break;
+      case 'KeyA': case 'ArrowLeft': moveState.left = false; break;
+      case 'KeyD': case 'ArrowRight': moveState.right = false; break;
+    }
+  };
+
+  document.addEventListener('keydown', onKeyDownRef);
+  document.addEventListener('keyup', onKeyUpRef);
 }
 
-export function enterFirstPerson(scene, camera, renderer) {
-  // TODO: Switch from OrbitControls to PointerLockControls
-  // TODO: Position camera at person model height
-  // TODO: Request pointer lock
-  isWalking = true;
+export function enterWalkMode(startPos = null) {
+  if (!cameraRef || !rendererRef || !terrainMeshRef) return;
+
+  if (orbitControlsRef) {
+    orbitControlsRef.enabled = false;
+  }
+
+  walkControls = new PointerLockControls(cameraRef, rendererRef.domElement);
+
+  if (startPos) {
+    cameraRef.position.set(startPos.x, startPos.y + EYE_HEIGHT, startPos.z);
+  } else {
+    const terrainCenter = getTerrainCenter();
+    if (terrainCenter) {
+      cameraRef.position.set(terrainCenter.x, terrainCenter.y + EYE_HEIGHT, terrainCenter.z);
+    }
+  }
+
+  walkControls.lock();
+
+  walkControls.addEventListener('lock', () => {
+    isWalking = true;
+    if (walkHud) walkHud.classList.remove('hidden');
+  });
+
+  walkControls.addEventListener('unlock', () => {
+    if (isWalking) {
+      exitWalkMode();
+    }
+  });
+
+  lastTime = performance.now();
+  walkAnimId = requestAnimationFrame(walkLoop);
 }
 
-export function exitFirstPerson() {
-  // TODO: Release pointer lock
-  // TODO: Switch back to OrbitControls
+export function exitWalkMode() {
   isWalking = false;
+
+  if (walkControls) {
+    if (walkControls.isLocked) {
+      walkControls.unlock();
+    }
+    walkControls.dispose();
+    walkControls = null;
+  }
+
+  if (walkAnimId) {
+    cancelAnimationFrame(walkAnimId);
+    walkAnimId = null;
+  }
+
+  moveState.forward = false;
+  moveState.backward = false;
+  moveState.left = false;
+  moveState.right = false;
+
+  if (orbitControlsRef) {
+    orbitControlsRef.enabled = true;
+    orbitControlsRef.update();
+  }
+
+  if (walkHud) walkHud.classList.add('hidden');
 }
 
-function updateMovement(delta, terrainMesh) {
-  if (!isWalking || !walkControls) return;
+function walkLoop(time) {
+  if (!isWalking) return;
 
-  // TODO: Calculate movement direction from WASD state
-  // TODO: Get terrain height at new position
-  // TODO: Keep camera at eye level above terrain
-  // TODO: Apply movement
+  const delta = Math.min((time - lastTime) / 1000, 0.1);
+  lastTime = time;
+
+  updateMovement(delta);
+
+  walkAnimId = requestAnimationFrame(walkLoop);
 }
 
-function onKeyDown(e) {
-  switch (e.code) {
-    case 'KeyW': moveState.forward = true; break;
-    case 'KeyS': moveState.backward = true; break;
-    case 'KeyA': moveState.left = true; break;
-    case 'KeyD': moveState.right = true; break;
-    case 'Escape': exitFirstPerson(); break;
+function updateMovement(delta) {
+  if (!isWalking || !walkControls || !walkControls.isLocked) return;
+
+  const moveDir = new THREE.Vector3();
+  const right = new THREE.Vector3();
+  const forward = new THREE.Vector3();
+
+  cameraRef.getWorldDirection(forward);
+  forward.y = 0;
+  forward.normalize();
+  right.crossVectors(forward, cameraRef.up).normalize();
+
+  if (moveState.forward) moveDir.add(forward);
+  if (moveState.backward) moveDir.sub(forward);
+  if (moveState.right) moveDir.add(right);
+  if (moveState.left) moveDir.sub(right);
+
+  if (moveDir.lengthSq() > 0) {
+    moveDir.normalize();
+    const distance = MOVE_SPEED * delta;
+
+    const newX = cameraRef.position.x + moveDir.x * distance;
+    const newZ = cameraRef.position.z + moveDir.z * distance;
+
+    const terrainY = getTerrainHeightAt(newX, newZ);
+    cameraRef.position.x = newX;
+    cameraRef.position.z = newZ;
+    cameraRef.position.y = terrainY + EYE_HEIGHT;
+  } else {
+    const terrainY = getTerrainHeightAt(cameraRef.position.x, cameraRef.position.z);
+    cameraRef.position.y = terrainY + EYE_HEIGHT;
   }
 }
 
-function onKeyUp(e) {
-  switch (e.code) {
-    case 'KeyW': moveState.forward = false; break;
-    case 'KeyS': moveState.backward = false; break;
-    case 'KeyA': moveState.left = false; break;
-    case 'KeyD': moveState.right = false; break;
-  }
-}
+function getTerrainHeightAt(x, z) {
+  if (!terrainMeshRef) return 0;
 
-// TODO: Raycaster for terrain height lookup
-function getTerrainHeight(x, z, terrainMesh) {
-  // TODO: Raycast down from above to find terrain surface height
-  // TODO: Return Y coordinate
+  const raycaster = new THREE.Raycaster();
+  raycaster.set(new THREE.Vector3(x, 10000, z), new THREE.Vector3(0, -1, 0));
+  const intersects = raycaster.intersectObject(terrainMeshRef, false);
+
+  if (intersects.length > 0) {
+    return intersects[0].point.y;
+  }
+
+  if (terrainMeshRef.geometry?.attributes?.position) {
+    const pos = terrainMeshRef.geometry.attributes.position;
+    let closestIdx = 0;
+    let closestDist = Infinity;
+    for (let i = 0; i < pos.count; i++) {
+      const px = pos.getX(i);
+      const pz = pos.getZ(i);
+      const dist = (px - x) ** 2 + (pz - z) ** 2;
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestIdx = i;
+      }
+    }
+    return pos.getY(closestIdx);
+  }
+
   return 0;
+}
+
+function getTerrainCenter() {
+  if (!terrainMeshRef?.geometry) return null;
+  terrainMeshRef.geometry.computeBoundingBox();
+  const box = terrainMeshRef.geometry.boundingBox;
+  const center = new THREE.Vector3();
+  box.getCenter(center);
+  const terrainY = getTerrainHeightAt(center.x, center.z);
+  return new THREE.Vector3(center.x, terrainY, center.z);
+}
+
+export function isWalkMode() {
+  return isWalking;
 }

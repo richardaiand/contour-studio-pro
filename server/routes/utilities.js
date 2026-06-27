@@ -1,14 +1,38 @@
-// V2: Utility routes
-// TODO: GET /api/utilities?lat=&lon=&bounds=&type=
-// TODO: Returns GeoJSON features for pipe/utility lines
+import { fetchUtilities, getAvailableUtilities } from '../services/utilities/sources.js';
 
 export default async function (fastify) {
   fastify.get('/', {
-    // TODO: Add auth
+    onRequest: [fastify.authenticate],
   }, async (req) => {
-    // TODO: Parse bounds from query
-    // TODO: Call fetchUtilities(bounds, type)
-    // TODO: Return GeoJSON FeatureCollection
-    return { type: 'FeatureCollection', features: [] };
+    const lat = parseFloat(req.query.lat);
+    const lon = parseFloat(req.query.lon);
+    const utilityType = req.query.type || 'sewer';
+
+    let bounds;
+    if (req.query.bounds) {
+      try {
+        bounds = JSON.parse(req.query.bounds);
+      } catch {
+        return { error: 'Invalid bounds JSON' };
+      }
+    } else if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      const size = 0.01;
+      bounds = {
+        minLat: lat - size,
+        maxLat: lat + size,
+        minLon: lon - size,
+        maxLon: lon + size,
+      };
+    } else {
+      return { error: 'lat/lon or bounds required' };
+    }
+
+    const features = await fetchUtilities(bounds, utilityType);
+
+    return {
+      type: 'FeatureCollection',
+      features,
+      availableTypes: getAvailableUtilities(lat, lon),
+    };
   });
 }

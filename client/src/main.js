@@ -1,14 +1,18 @@
-import { $ } from './utils.js';
+import { $, api } from './utils.js';
 import { store, setStatus } from './store/index.js';
 import { initTheme, applyTheme } from './modules/theme.js';
 import { initAuth, restoreSession } from './modules/auth.js';
 import { initSettings } from './modules/settings.js';
 import { initProjects, loadProjects, renderDashboard } from './modules/projects.js';
 import { initMap } from './modules/map.js';
-import { initViewport } from './modules/viewport.js';
+import { initViewport, getScene, getCamera, getRenderer, getControls, getTerrainMesh } from './modules/viewport.js';
 import { initTerrain } from './modules/terrain.js';
 import { initRouter, setInitialView, navigate, getCurrentView } from './router.js';
 import { startWalkthrough, shouldShowWalkthrough } from './modules/walkthrough.js';
+import { initEnvironment, loadEnvironmentalReport } from './modules/environment.js';
+import { loadUtilities, renderUtilityPipes, clearUtilityPipes } from './modules/utilities.js';
+import { initPlacement, setPlacementMode, clearPlacedObjects, getPlacementMode, disposePlacement } from './modules/placement.js';
+import { initWalkMode, enterWalkMode, exitWalkMode, isWalkMode } from './modules/walk-mode.js';
 
 async function init() {
   initTheme();
@@ -93,6 +97,151 @@ async function init() {
 
   // Edit Site button → back to map
   $('editSiteBtn')?.addEventListener('click', () => navigate('map'));
+
+  // ===== Environmental Report =====
+  $('envReportBtn')?.addEventListener('click', async () => {
+    const center = store.get('center');
+    if (!center) {
+      setStatus('Generate terrain first to get environmental data.', 'error');
+      return;
+    }
+    const btn = $('envReportBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Generating report…'; }
+    try {
+      await loadEnvironmentalReport(center.lat, center.lon);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Generate Site Report'; }
+    }
+  });
+
+  // ===== Utility Overlays =====
+  let activeUtilityTypes = new Set();
+  async function toggleUtility(type) {
+    const bounds = store.get('bounds');
+    const terrain = store.get('currentTerrain');
+    const mesh = getTerrainMesh();
+    if (!bounds || !mesh || !terrain) {
+      setStatus('Generate terrain first to show utilities.', 'error');
+      return;
+    }
+
+    const fetchBounds = terrain.fetchBounds || terrain.originalBounds || bounds;
+
+    if (activeUtilityTypes.has(type)) {
+      activeUtilityTypes.delete(type);
+      const btn = type === 'sewer' ? $('toggleSewerBtn') : $('toggleWaterBtn');
+      if (btn) btn.classList.remove('active');
+      const scene = getScene();
+      clearUtilityPipes(scene);
+      for (const remaining of activeUtilityTypes) {
+        await loadAndRenderUtilities(remaining, fetchBounds, mesh);
+      }
+    } else {
+      activeUtilityTypes.add(type);
+      const btn = type === 'sewer' ? $('toggleSewerBtn') : $('toggleWaterBtn');
+      if (btn) btn.classList.add('active');
+      await loadAndRenderUtilities(type, fetchBounds, mesh);
+    }
+  }
+
+  async function loadAndRenderUtilities(type, bounds, mesh) {
+    const scene = getScene();
+    try {
+      const data = await loadUtilities(bounds, type);
+      if (data.features && data.features.length > 0) {
+        renderUtilityPipes(scene, data.features, mesh, bounds);
+        setStatus(`Loaded ${data.features.length} ${type} features.`, 'ok');
+      } else {
+        setStatus(`No ${type} data found for this area.`, '');
+      }
+    } catch (e) {
+      setStatus(`Failed to load ${type} data: ${e.message}`, 'error');
+    }
+  }
+
+  $('toggleSewerBtn')?.addEventListener('click', () => toggleUtility('sewer'));
+  $('toggleWaterBtn')?.addEventListener('click', () => toggleUtility('water'));
+
+  // ===== Object Placement =====
+  // Initialize placement when terrain is loaded
+  let placementInitialized = false;
+  store.subscribe((state) => {
+    if (state.currentTerrain && !placementInitialized) {
+      const scene = getScene();
+      const camera = getCamera();
+      const renderer = getRenderer();
+      const mesh = getTerrainMesh();
+      if (scene && camera && renderer && mesh) {
+        initPlacement(scene, camera, renderer, mesh);
+        placementInitialized = true;
+      }
+    }
+    if (!state.currentTerrain && placementInitialized) {
+      disposePlacement();
+      placementInitialized = false;
+    }
+  });
+
+  function setupPlacementButton(btnId, objectType) {
+    $(btnId)?.addEventListener('click', () => {
+      const mesh = getTerrainMesh();
+      if (!mesh) {
+        setStatus('Generate terrain first to place objects.', 'error');
+        return;
+      }
+      const current = getPlacementMode();
+      if (current === objectType) {
+        setPlacementMode(null);
+        $(btnId)?.classList.remove('active');
+        $('placementHint').style.display = 'none';
+      } else {
+        document.querySelectorAll('.object-palette button').forEach((b) => b.classList.remove('active'));
+        $(btnId)?.classList.add('active');
+        setPlacementMode(objectType);
+        $('placementHint').style.display = 'block';
+      }
+    });
+  }
+  setupPlacementButton('placeTreeBtn', 'tree');
+  setupPlacementButton('placeRockBtn', 'rock');
+  setupPlacementButton('placeBuildingBtn', 'building');
+  setupPlacementButton('placePersonBtn', 'person');
+
+  $('clearObjectsBtn')?.addEventListener('click', () => {
+    clearPlacedObjects();
+    document.querySelectorAll('.object-palette button').forEach((b) => b.classList.remove('active'));
+    setPlacementMode(null);
+    $('placementHint').style.display = 'none';
+    setStatus('All placed objects cleared.', 'ok');
+  });
+
+  // ===== Walk Mode =====
+  $('enterWalkBtn')?.addEventListener('click', () => {
+    const mesh = getTerrainMesh();
+    if (!mesh) {
+      setStatus('Generate terrain first to enter walk mode.', 'error');
+      return;
+    }
+    const scene = getScene();
+    const camera = getCamera();
+    const renderer = getRenderer();
+    const controls = getControls();
+
+    if (!scene || !camera || !renderer) return;
+
+    initWalkMode(scene, camera, renderer, mesh, controls);
+    enterWalkMode();
+  });
+
+  $('exitWalkMode')?.addEventListener('click', () => exitWalkMode());
+
+  // ===== Legend Analysis =====
+  $('legendAnalysisCheck')?.addEventListener('change', (e) => {
+    const btn = $('analyzeBtn');
+    if (btn) {
+      btn.textContent = e.target.checked ? 'Analyze Legend' : 'Analyze Map';
+    }
+  });
 
   // Manual save buttons
   async function manualSave() {

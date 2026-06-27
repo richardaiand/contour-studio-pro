@@ -369,9 +369,15 @@ function handlePosition(center, sizeMeters, rotation) {
 
 export function getAreaInputs() {
   const value = parseFloat($('areaValue')?.value);
+  const value2 = parseFloat($('areaValue2')?.value);
   const unit = $('areaUnit')?.value || 'km';
   const rotation = store.get('rotation') || 0;
-  return { value: Number.isFinite(value) ? value : 1, unit, rotation };
+  return {
+    value: Number.isFinite(value) ? value : 1,
+    value2: Number.isFinite(value2) ? value2 : (Number.isFinite(value) ? value : 1),
+    unit,
+    rotation,
+  };
 }
 
 export function sizeMetersFromInputs(inputs = getAreaInputs()) {
@@ -402,6 +408,34 @@ export function sizeMetersFromInputs(inputs = getAreaInputs()) {
   return Math.max(MIN_SIZE_METERS, Math.min(MAX_SIZE_METERS, meters));
 }
 
+export function sizeMeters2FromInputs(inputs = getAreaInputs()) {
+  const { value2, unit } = inputs;
+  if (value2 <= 0) return sizeMetersFromInputs(inputs);
+
+  let meters;
+  switch (unit) {
+    case 'm':
+      meters = value2;
+      break;
+    case 'km':
+      meters = value2 * 1000;
+      break;
+    case 'ft':
+      meters = value2 * 0.3048;
+      break;
+    case 'mi':
+      meters = value2 * 1609.344;
+      break;
+    case 'acre':
+      meters = Math.sqrt(value2 * 4046.85642);
+      break;
+    default:
+      meters = value2 * 1000;
+  }
+
+  return Math.max(MIN_SIZE_METERS, Math.min(MAX_SIZE_METERS, meters));
+}
+
 export function unitLimits(unit) {
   switch (unit) {
     case 'm':
@@ -420,9 +454,10 @@ export function unitLimits(unit) {
 }
 
 export function formatSizeLabel() {
-  const { value, unit } = getAreaInputs();
+  const { value, value2, unit } = getAreaInputs();
   if (unit === 'acre') return `${value} acres`;
-  return `${value} ${unit} × ${value} ${unit}`;
+  if (value === value2) return `${value} ${unit} × ${value} ${unit}`;
+  return `${value} ${unit} × ${value2} ${unit}`;
 }
 
 function setRotation(rotation) {
@@ -430,23 +465,25 @@ function setRotation(rotation) {
   if (!center) return;
   rotation = ((rotation % 360) + 360) % 360;
   const sizeMeters = sizeMetersFromInputs();
-  const bounds = boundsFromPolygon(rotatedSquare(center, sizeMeters, rotation));
-  store.set({ center, bounds, sizeMeters, rotation });
-  updateSelectionLayer(rotatedSquare(center, sizeMeters, rotation));
-  createRotationHandle(center, sizeMeters, rotation);
+  const sizeMeters2 = sizeMeters2FromInputs();
+  const bounds = boundsFromPolygon(rotatedSquare(center, sizeMeters, rotation, sizeMeters2));
+  store.set({ center, bounds, sizeMeters, sizeMeters2, rotation });
+  updateSelectionLayer(rotatedSquare(center, sizeMeters, rotation, sizeMeters2));
+  createRotationHandle(center, Math.max(sizeMeters, sizeMeters2), rotation);
 }
 
 function updateSelection(center, updateStore = true, shouldZoom = false) {
   const sizeMeters = sizeMetersFromInputs();
+  const sizeMeters2 = sizeMeters2FromInputs();
   const rotation = store.get('rotation') || 0;
-  const polygon = rotatedSquare(center, sizeMeters, rotation);
+  const polygon = rotatedSquare(center, sizeMeters, rotation, sizeMeters2);
   const bounds = boundsFromPolygon(polygon);
 
   if (updateStore) {
-    store.set({ center, bounds, sizeMeters, rotation });
+    store.set({ center, bounds, sizeMeters, sizeMeters2, rotation });
   }
   updateSelectionLayer(polygon);
-  createRotationHandle(center, sizeMeters, rotation);
+  createRotationHandle(center, Math.max(sizeMeters, sizeMeters2), rotation);
 
   if (shouldZoom) {
     map.fitBounds(
@@ -500,19 +537,18 @@ function lonLatToLocalMeters(center, lat, lon) {
   return { dx, dy };
 }
 
-function rotatedSquare(center, sizeMeters, rotationDegrees) {
-  const half = sizeMeters / 2;
-  // Negate rotation so the box rotates in the same direction as the handle
+function rotatedSquare(center, sizeMeters, rotationDegrees, sizeMeters2 = null) {
+  const halfW = sizeMeters / 2;
+  const halfH = (sizeMeters2 || sizeMeters) / 2;
   const rotation = (-rotationDegrees * Math.PI) / 180;
   const cosR = Math.cos(rotation);
   const sinR = Math.sin(rotation);
 
-  // Unrotated corners in local meters (square centered at origin)
   const corners = [
-    { x: -half, y: -half },
-    { x: half, y: -half },
-    { x: half, y: half },
-    { x: -half, y: half },
+    { x: -halfW, y: -halfH },
+    { x: halfW, y: -halfH },
+    { x: halfW, y: halfH },
+    { x: -halfW, y: halfH },
   ];
 
   const rotated = corners.map(({ x, y }) => {

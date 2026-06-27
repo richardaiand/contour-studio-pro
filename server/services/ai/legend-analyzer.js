@@ -1,6 +1,15 @@
-// V2: AI Map Legend Analyzer
-// TODO: Enhanced vision prompt for extracting structured legend data
-// TODO: Extract: legend symbols, scale bar ratio, contour interval, north arrow, datum
+import { config } from '../../config.js';
+import { decrypt } from '../../utils/index.js';
+import { getDb } from '../../db.js';
+import { AppError } from '../../errors.js';
+
+const PRESETS = {
+  aiand: { endpoint: config.providers.aiand.endpoint, model: config.providers.aiand.model },
+  openai: { endpoint: config.providers.openai.endpoint, model: config.providers.openai.model },
+  anthropic: { endpoint: config.providers.anthropic.endpoint, model: config.providers.anthropic.model },
+  openrouter: { endpoint: config.providers.openrouter.endpoint, model: config.providers.openrouter.model },
+  ollama: { endpoint: config.providers.ollama.endpoint, model: config.providers.ollama.model },
+};
 
 const LEGEND_ANALYSIS_PROMPT = `You are analyzing a topographic map image. Extract the following structured data:
 
@@ -27,11 +36,97 @@ Return as JSON with this exact structure:
   "publisher": "USGS",
   "edition": "2024",
   "notes": "any additional observations"
-}`;
+}
 
-export async function analyzeMapLegend(imageBuffer, mimeType, provider) {
-  // TODO: Call AI vision API with LEGEND_ANALYSIS_PROMPT
-  // TODO: Parse structured JSON response
-  // TODO: Return legend data object
-  throw new Error('Not implemented — see ROADMAP.md V2.3');
+If a field is not visible on the map, use null for that field.`;
+
+export async function analyzeMapLegend({ imageBuffer, mimeType, userId }) {
+  const apiKey = getApiKey(userId);
+  if (!apiKey) {
+    throw new AppError('No AI provider API key configured. Add one in Settings.', 400, 'NO_API_KEY');
+  }
+
+  const { endpoint, model } = resolveProvider({ userId });
+  const base64 = imageBuffer.toString('base64');
+  const dataUrl = `data:${mimeType};base64,${base64}`;
+
+  const messages = [
+    {
+      role: 'system',
+      content: 'You are a cartographic analyst specializing in topographic map interpretation. Return only valid JSON.',
+    },
+    {
+      role: 'user',
+      content: [
+        {
+          type: 'text',
+          text: LEGEND_ANALYSIS_PROMPT,
+        },
+        {
+          type: 'image_url',
+          image_url: { url: dataUrl, detail: 'high' },
+        },
+      ],
+    },
+  ];
+
+  const upstreamUrl = endpoint.replace(/\/+$/, '') + '/chat/completions';
+
+  const res = await fetch(upstreamUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.2,
+      max_tokens: 4096,
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new AppError(`AI provider error ${res.status}: ${text.slice(0, 300)}`, 502, 'AI_ERROR');
+  }
+
+  const data = await res.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new AppError('AI returned empty content', 502, 'AI_ERROR');
+  }
+
+  return parseJsonResponse(content);
+}
+
+function resolveProvider({ userId }) {
+  const settings = userId
+    ? getDb().prepare('SELECT * FROM user_settings WHERE user_id = ?').get(userId)
+    : null;
+
+  const endpoint = settings?.provider_endpoint || PRESETS.aiand.endpoint;
+  const model = settings?.provider_model || PRESETS.aiand.model;
+
+  return { endpoint, model };
+}
+
+function getApiKey(userId) {
+  if (!userId) return null;
+  const settings = getDb().prepare('SELECT * FROM user_settings WHERE user_id = ?').get(userId);
+  if (settings?.encrypted_api_key) {
+    return decrypt(settings.encrypted_api_key);
+  }
+  return null;
+}
+
+function parseJsonResponse(content) {
+  const codeBlock = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const jsonText = codeBlock ? codeBlock[1].trim() : content.trim();
+
+  try {
+    return JSON.parse(jsonText);
+  } catch (err) {
+    throw new AppError(`AI returned invalid JSON: ${err.message}`, 502, 'AI_ERROR');
+  }
 }

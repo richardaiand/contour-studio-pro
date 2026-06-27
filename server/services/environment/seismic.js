@@ -1,16 +1,61 @@
-// V3: Seismic data from USGS Earthquake API
-// TODO: Fetch earthquake history for a location
-// API: https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&latitude=&longitude=&maxradiuskm=100&starttime=2000-01-01
+import { AppError } from '../../errors.js';
 
 export async function fetchSeismicData(lat, lon, radiusKm = 100) {
-  // TODO: Query USGS for earthquakes within radius
-  // TODO: Calculate: max magnitude, frequency, risk level
-  // TODO: Return { maxMagnitude, earthquakeCount, riskLevel, recentEvents: [] }
-  throw new Error('Not implemented — see ROADMAP.md V3.1');
+  const startTime = new Date();
+  startTime.setFullYear(startTime.getFullYear() - 25);
+
+  const url = `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&latitude=${lat}&longitude=${lon}&maxradiuskm=${radiusKm}&starttime=${startTime.toISOString().split('T')[0]}&minmagnitude=2.5`;
+
+  const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
+  if (!res.ok) {
+    throw new AppError(`USGS API error ${res.status}`, 502, 'SEISMIC_ERROR');
+  }
+
+  const data = await res.json();
+  const features = data.features || [];
+
+  let maxMagnitude = 0;
+  let totalCount = features.length;
+  const recentEvents = [];
+
+  for (const f of features) {
+    const mag = f.properties?.mag || 0;
+    if (mag > maxMagnitude) maxMagnitude = mag;
+
+    if (recentEvents.length < 10) {
+      recentEvents.push({
+        magnitude: Math.round(mag * 10) / 10,
+        place: f.properties?.place || 'Unknown',
+        time: f.properties?.time || 0,
+        url: f.properties?.url || null,
+      });
+    }
+  }
+
+  recentEvents.sort((a, b) => b.magnitude - a.magnitude);
+
+  return {
+    maxMagnitude: Math.round(maxMagnitude * 10) / 10,
+    earthquakeCount: totalCount,
+    riskLevel: calculateSeismicRisk(features),
+    radiusKm,
+    recentEvents,
+  };
 }
 
 export function calculateSeismicRisk(earthquakes) {
-  // TODO: Calculate risk level based on magnitude and frequency
-  // TODO: Return 'low' | 'moderate' | 'high' | 'very high'
-  throw new Error('Not implemented — see ROADMAP.md V3.1');
+  let maxMag = 0;
+  let significantCount = 0;
+
+  for (const f of earthquakes) {
+    const mag = f.properties?.mag || 0;
+    if (mag > maxMag) maxMag = mag;
+    if (mag >= 5.0) significantCount++;
+  }
+
+  if (maxMag >= 7.0 || significantCount >= 10) return 'very high';
+  if (maxMag >= 6.0 || significantCount >= 5) return 'high';
+  if (maxMag >= 5.0 || earthquakes.length >= 20) return 'moderate';
+  if (earthquakes.length >= 5) return 'low';
+  return 'very low';
 }

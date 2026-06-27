@@ -9,7 +9,7 @@
   <meta http-equiv="Expires" content="0" />
   <title>Contour Studio · AI Terrain to 3D</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m8 3 4 8 5-5 5 15H2L8 3z'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="/src/style.css?v=0.1.4" />
+  <link rel="stylesheet" href="/src/style.css?v=0.2.0" />
 </head>
 <body>
   <div id="app">
@@ -123,6 +123,8 @@
                 <label>Area</label>
                 <div class="area-inputs">
                   <input id="areaValue" type="number" min="0.01" max="10" step="0.01" value="1" />
+                  <span class="area-sep">×</span>
+                  <input id="areaValue2" type="number" min="0.01" max="10" step="0.01" value="1" />
                   <select id="areaUnit">
                     <option value="km">km</option>
                     <option value="m">m</option>
@@ -141,7 +143,12 @@
               <h2>Upload Map</h2>
               <p class="hint">Upload a topographic map to analyze contours.</p>
               <input id="mapUpload" type="file" accept="image/*,.pdf" />
+              <label class="checkbox-label">
+                <input type="checkbox" id="legendAnalysisCheck" />
+                Full legend analysis (symbols, scale, datum)
+              </label>
               <button id="analyzeBtn" class="secondary full" disabled>Analyze Map</button>
+              <div id="mapAnalysisResult" class="map-analysis-result"></div>
             </div>
 
             <div class="panel">
@@ -233,12 +240,73 @@
                 <div class="hint">Previous generations will appear here.</div>
               </div>
             </div>
+
+            <div class="panel">
+              <h2>Environment</h2>
+              <button id="envReportBtn" class="secondary full">Generate Site Report</button>
+              <div id="envReport" class="env-report"></div>
+            </div>
+
+            <div class="panel">
+              <h2>Utilities</h2>
+              <div class="utility-toggles">
+                <button id="toggleSewerBtn" class="ghost sm" data-utility="sewer">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M3 12h6m6 0h6"/></svg>
+                  Sewer
+                </button>
+                <button id="toggleWaterBtn" class="ghost sm" data-utility="water">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                  Water
+                </button>
+              </div>
+            </div>
+
+            <div class="panel">
+              <h2>Place Objects</h2>
+              <div class="object-palette">
+                <button id="placeTreeBtn" class="ghost sm" data-object="tree" title="Tree (8m)">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L8 8h2L6 14h3l-3 5h12l-3-5h3l-4-6h2z"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                  Tree
+                </button>
+                <button id="placeRockBtn" class="ghost sm" data-object="rock" title="Rock (2m)">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20l5-12 4 4 3-6 6 14z"/></svg>
+                  Rock
+                </button>
+                <button id="placeBuildingBtn" class="ghost sm" data-object="building" title="Building (6m)">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/></svg>
+                  Building
+                </button>
+                <button id="placePersonBtn" class="ghost sm" data-object="person" title="Person (1.75m)">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg>
+                  Person
+                </button>
+              </div>
+              <div id="placementHint" class="hint" style="display:none;">Click on the terrain to place.</div>
+              <button id="clearObjectsBtn" class="ghost sm full" style="margin-top:6px;">Clear All Objects</button>
+            </div>
+
+            <div class="panel">
+              <h2>Walk Mode</h2>
+              <p class="hint">Drop onto the terrain and explore in first-person.</p>
+              <button id="enterWalkBtn" class="secondary full">Enter Walk Mode</button>
+            </div>
           </div>
           </div>
         </aside>
 
         <section class="viewport-studio">
           <canvas id="scene" class="scene-view"></canvas>
+          <div id="walkHudOverlay" class="walk-hud-overlay hidden">
+            <button id="exitWalkMode" class="ghost" title="Exit walk mode">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              Back to Studio
+            </button>
+            <div class="walk-controls-hint">
+              <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span>
+              <span><kbd>Mouse</kbd> Look</span>
+              <span><kbd>Esc</kbd> Exit</span>
+            </div>
+          </div>
         </section>
       </main>
     </section>
@@ -351,6 +419,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/src/main.js?v=0.1.6"></script>
+  <script type="module" src="/src/main.js?v=0.2.0"></script>
 </body>
 </html>

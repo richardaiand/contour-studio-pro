@@ -68,52 +68,7 @@ async function buildServer() {
   await fastify.register(environmentRoutes, { prefix: '/api/environment' });
 
   // Health check
-  fastify.get('/health', async () => ({ status: 'ok', version: '0.1.0' }));
-
-  // Debug endpoint — tests DB and auth
-  fastify.get('/api/debug', {
-    onRequest: [fastify.authenticate],
-  }, async (req) => {
-    const { getDb } = await import('./db.js');
-    const { config } = await import('./config.js');
-    const { existsSync } = await import('fs');
-    const info = {
-      databaseUrl: config.databaseUrl,
-      dbFileExists: false,
-      dbWritable: false,
-      tables: [],
-      user: req.user,
-      projectsQuery: null,
-      exportsQuery: null,
-      jobsQuery: null,
-      workerRunning: false,
-      error: null,
-    };
-    try {
-      info.dbFileExists = existsSync(config.databaseUrl);
-      const db = getDb();
-      info.tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name);
-      info.dbWritable = true;
-      try {
-        info.projectsQuery = db.prepare('SELECT * FROM projects WHERE user_id = ?').all(req.user.userId);
-      } catch (e) {
-        info.projectsQuery = { error: e.message };
-      }
-      try {
-        info.exportsQuery = db.prepare('SELECT * FROM exports WHERE user_id = ?').all(req.user.userId);
-      } catch (e) {
-        info.exportsQuery = { error: e.message };
-      }
-      try {
-        info.jobsQuery = db.prepare('SELECT id, status, type, error FROM jobs WHERE user_id = ? ORDER BY created_at DESC LIMIT 5').all(req.user.userId);
-      } catch (e) {
-        info.jobsQuery = { error: e.message };
-      }
-    } catch (err) {
-      info.error = err.message;
-    }
-    return info;
-  });
+  fastify.get('/health', async () => ({ status: 'ok', version: '0.2.0' }));
 
   // Serve static client in production
   if (isProduction) {

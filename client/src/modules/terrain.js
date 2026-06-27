@@ -1,9 +1,10 @@
 import { $, api } from '../utils.js';
 import { store, setStatus } from '../store/index.js';
 import { setTerrain, getTerrainMesh, drawSelectionOutline, captureStudioThumbnail } from './viewport.js';
-import { computeBounds, getCenter, getMapCenter, sizeMetersFromInputs, getAreaInputs, formatSizeLabel, unitLimits, captureMapThumbnail } from './map.js';
+import { computeBounds, getCenter, getMapCenter, sizeMetersFromInputs, sizeMeters2FromInputs, getAreaInputs, formatSizeLabel, unitLimits, captureMapThumbnail } from './map.js';
 import { loadProjects } from './projects.js';
 import { navigate } from '../router.js';
+import { initPlacement } from './placement.js';
 
 let suggestionIndex = -1;
 let suggestions = [];
@@ -30,28 +31,42 @@ export function initTerrain() {
     const center = store.get('center') || getCenter();
     if (center) {
       const sizeMeters = sizeMetersFromInputs();
-      const bounds = computeBounds(center, sizeMeters);
-      store.set({ sizeMeters, bounds });
+      const sizeMeters2 = sizeMeters2FromInputs();
+      const bounds = computeBounds(center, Math.max(sizeMeters, sizeMeters2));
+      store.set({ sizeMeters, sizeMeters2, bounds });
     }
   };
 
   const updateUnitLimits = () => {
     const unit = $('areaUnit')?.value || 'km';
     const input = $('areaValue');
+    const input2 = $('areaValue2');
     if (!input) return;
     const limits = unitLimits(unit);
     input.min = limits.min;
     input.max = limits.max;
     input.step = limits.step;
-    // Clamp existing value to new unit limits
+    if (input2) {
+      input2.min = limits.min;
+      input2.max = limits.max;
+      input2.step = limits.step;
+    }
     const current = parseFloat(input.value);
     if (Number.isFinite(current)) {
       const clamped = Math.max(limits.min, Math.min(limits.max, current));
       if (clamped !== current) input.value = String(clamped);
     }
+    if (input2) {
+      const current2 = parseFloat(input2.value);
+      if (Number.isFinite(current2)) {
+        const clamped2 = Math.max(limits.min, Math.min(limits.max, current2));
+        if (clamped2 !== current2) input2.value = String(clamped2);
+      }
+    }
   };
 
   $('areaValue')?.addEventListener('input', updateArea);
+  $('areaValue2')?.addEventListener('input', updateArea);
   $('areaUnit')?.addEventListener('change', () => {
     updateUnitLimits();
     updateArea();
@@ -356,12 +371,14 @@ async function analyzeMapUpload(e) {
     return;
   }
 
+  const legendMode = $('legendAnalysisCheck')?.checked;
   setStatus(`Analyzing ${file.name}…`, '');
   try {
     const formData = new FormData();
     formData.append('file', file);
 
-    const res = await fetch('/api/maps/analyze', {
+    const url = legendMode ? '/api/maps/analyze?legend=true' : '/api/maps/analyze';
+    const res = await fetch(url, {
       method: 'POST',
       credentials: 'same-origin',
       body: formData,
@@ -375,15 +392,56 @@ async function analyzeMapUpload(e) {
     const data = await res.json();
     store.set({ currentMapAnalysis: data.analysis });
 
-    const interval = data.analysis?.contourIntervalMeters
-      ? `${data.analysis.contourIntervalMeters}m contour interval`
-      : 'no contour interval detected';
-    setStatus(`Map analyzed: ${data.analysis?.title || file.name} · ${interval}`, 'ok');
+    const resultEl = $('mapAnalysisResult');
+    if (legendMode && data.type === 'legend') {
+      renderLegendAnalysis(data.analysis, resultEl);
+      setStatus(`Legend analyzed: ${data.analysis?.title || file.name}`, 'ok');
+    } else {
+      const interval = data.analysis?.contourIntervalMeters
+        ? `${data.analysis.contourIntervalMeters}m contour interval`
+        : 'no contour interval detected';
+      setStatus(`Map analyzed: ${data.analysis?.title || file.name} · ${interval}`, 'ok');
+      if (resultEl) {
+        resultEl.innerHTML = `
+          <div class="analysis-summary">
+            ${data.analysis?.title ? `<div><b>${data.analysis.title}</b></div>` : ''}
+            ${data.analysis?.scale ? `<div>Scale: ${data.analysis.scale}</div>` : ''}
+            ${data.analysis?.coordinateSystem ? `<div>CRS: ${data.analysis.coordinateSystem}</div>` : ''}
+            ${data.analysis?.features ? `<div>${data.analysis.features.length} features detected</div>` : ''}
+          </div>
+        `;
+      }
+    }
   } catch (e) {
     setStatus('Map analysis failed: ' + e.message, 'error');
   } finally {
     e.target.value = '';
   }
+}
+
+function renderLegendAnalysis(analysis, el) {
+  if (!el) return;
+  const symbols = analysis.legendSymbols || [];
+  el.innerHTML = `
+    <div class="legend-analysis">
+      ${analysis.title ? `<div class="legend-title">${analysis.title}</div>` : ''}
+      ${analysis.scaleRatio ? `<div><b>Scale:</b> ${analysis.scaleRatio}</div>` : ''}
+      ${analysis.contourIntervalMeters ? `<div><b>Contour interval:</b> ${analysis.contourIntervalMeters}m (${analysis.contourIntervalFeet || '?'}ft)</div>` : ''}
+      ${analysis.datum ? `<div><b>Datum:</b> ${analysis.datum}</div>` : ''}
+      ${analysis.coordinateSystem ? `<div><b>Coordinate system:</b> ${analysis.coordinateSystem}</div>` : ''}
+      ${analysis.publisher ? `<div><b>Publisher:</b> ${analysis.publisher}</div>` : ''}
+      ${analysis.edition ? `<div><b>Edition:</b> ${analysis.edition}</div>` : ''}
+      ${symbols.length > 0 ? `
+        <details class="env-details">
+          <summary>Legend symbols (${symbols.length})</summary>
+          <ul class="symbol-list">
+            ${symbols.map((s) => `<li><b>${s.symbol || '?'}</b> — ${s.meaning || ''}</li>`).join('')}
+          </ul>
+        </details>
+      ` : ''}
+      ${analysis.notes ? `<div class="hint">${analysis.notes}</div>` : ''}
+    </div>
+  `;
 }
 
 function updateStats(data) {

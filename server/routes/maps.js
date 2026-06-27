@@ -1,8 +1,9 @@
 import { analyzeMap } from '../services/ai/analyzer.js';
+import { analyzeMapLegend } from '../services/ai/legend-analyzer.js';
 import { AppError } from '../errors.js';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
-const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_SIZE = 10 * 1024 * 1024;
 
 export default async function (fastify) {
   fastify.post('/analyze', {
@@ -30,9 +31,24 @@ export default async function (fastify) {
 
     const buffer = Buffer.concat(chunks);
 
-    // For MVP, we do not convert PDF to image here. PDFs will fail at the AI provider
-    // unless the provider supports PDF vision. We still accept the upload so the user
-    // can try their provider.
+    const isLegendAnalysis = req.query.legend === 'true' || data.fields?.legend?.value === 'true';
+
+    if (isLegendAnalysis) {
+      const legendResult = await analyzeMapLegend({
+        imageBuffer: buffer,
+        mimeType: data.mimetype,
+        userId: req.user.userId,
+      });
+
+      return {
+        filename: data.filename,
+        mimetype: data.mimetype,
+        size,
+        analysis: legendResult,
+        type: 'legend',
+      };
+    }
+
     const result = await analyzeMap({
       imageBuffer: buffer,
       mimeType: data.mimetype,

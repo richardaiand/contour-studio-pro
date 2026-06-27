@@ -273,6 +273,22 @@ export function getTerrainMesh() {
   return terrainMesh;
 }
 
+export function getScene() {
+  return scene;
+}
+
+export function getCamera() {
+  return camera;
+}
+
+export function getRenderer() {
+  return renderer;
+}
+
+export function getControls() {
+  return controls;
+}
+
 export function captureStudioThumbnail() {
   if (!renderer || !scene || !camera) return null;
   renderer.render(scene, camera);
