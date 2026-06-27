@@ -93,10 +93,12 @@ async function processTerrainJob(job, setProgress) {
   const mesh = gridToMesh(dem.grid, meshBounds, { verticalExaggeration });
 
   // V2.4: Clean up mesh geometry (remove degenerate triangles, weld duplicates)
-  const cleaned = cleanupMesh(mesh.positions, mesh.normals, mesh.indices);
+  const cleaned = cleanupMesh(mesh.positions, mesh.normals, mesh.indices, mesh.uvs, mesh.colors);
   mesh.positions = cleaned.positions;
   mesh.normals = cleaned.normals;
   mesh.indices = cleaned.indices;
+  mesh.uvs = cleaned.uvs;
+  mesh.colors = cleaned.colors;
   console.log(`Mesh cleanup: removed ${cleaned.removedDegenerate} degenerate triangles, merged ${cleaned.mergedVertices} duplicate vertices`);
 
   setProgress(95);

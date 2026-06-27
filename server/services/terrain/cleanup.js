@@ -1,14 +1,14 @@
 // V2.4: Mesh geometry cleanup
 // Removes degenerate triangles and merges duplicate vertices
 
-export function cleanupMesh(positions, normals, indices) {
+export function cleanupMesh(positions, normals, indices, uvs, colors) {
   let removedDegenerate = 0;
   let mergedVertices = 0;
 
   const result = removeDegenerateTriangles(positions, indices);
   removedDegenerate = result.removedCount;
 
-  const mergeResult = mergeDuplicateVertices(result.positions, result.indices);
+  const mergeResult = mergeDuplicateVertices(result.positions, result.indices, uvs, colors);
   mergedVertices = mergeResult.mergedCount;
 
   const cleanedNormals = recomputeNormals(mergeResult.positions, mergeResult.indices);
@@ -17,6 +17,8 @@ export function cleanupMesh(positions, normals, indices) {
     positions: mergeResult.positions,
     normals: cleanedNormals,
     indices: mergeResult.indices,
+    uvs: mergeResult.uvs,
+    colors: mergeResult.colors,
     removedDegenerate,
     mergedVertices,
   };
@@ -64,25 +66,34 @@ export function removeDegenerateTriangles(positions, indices) {
   return { positions, indices: kept, removedCount };
 }
 
-export function mergeDuplicateVertices(positions, indices) {
+export function mergeDuplicateVertices(positions, indices, uvs, colors) {
   const precision = 3;
   const hash = new Map();
   const newPositions = [];
+  const newUvs = [];
+  const newColors = [];
   const remap = new Map();
   let nextIndex = 0;
 
   for (let i = 0; i < positions.length; i += 3) {
+    const vertIdx = i / 3;
     const x = positions[i];
     const y = positions[i + 1];
     const z = positions[i + 2];
     const key = `${x.toFixed(precision)},${y.toFixed(precision)},${z.toFixed(precision)}`;
 
     if (hash.has(key)) {
-      remap.set(i / 3, hash.get(key));
+      remap.set(vertIdx, hash.get(key));
     } else {
       hash.set(key, nextIndex);
-      remap.set(i / 3, nextIndex);
+      remap.set(vertIdx, nextIndex);
       newPositions.push(x, y, z);
+      if (uvs) {
+        newUvs.push(uvs[vertIdx * 2], uvs[vertIdx * 2 + 1]);
+      }
+      if (colors) {
+        newColors.push(colors[vertIdx * 3], colors[vertIdx * 3 + 1], colors[vertIdx * 3 + 2]);
+      }
       nextIndex++;
     }
   }
@@ -94,7 +105,13 @@ export function mergeDuplicateVertices(positions, indices) {
 
   const mergedCount = positions.length / 3 - newPositions.length / 3;
 
-  return { positions: newPositions, indices: newIndices, mergedCount };
+  return {
+    positions: newPositions,
+    indices: newIndices,
+    uvs: uvs ? newUvs : undefined,
+    colors: colors ? newColors : undefined,
+    mergedCount,
+  };
 }
 
 function recomputeNormals(positions, indices) {
