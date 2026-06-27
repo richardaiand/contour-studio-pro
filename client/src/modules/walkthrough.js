@@ -81,14 +81,7 @@ const STEPS = [
   {
     target: '#saveBtnStudio',
     title: 'Save',
-    body: 'Save your project manually. Your work also auto-saves when you change the area or location.',
-    view: 'studio',
-    position: 'bottom',
-  },
-  {
-    target: '#settingsBtnStudio',
-    title: 'Settings & Sign Out',
-    body: 'Click the gear icon to configure your AI provider API key. The Sign Out button is at the bottom of the settings dialog. That\'s it — you\'re ready to go!',
+    body: 'Save your project manually. Your work also auto-saves when you change the area or location. That\'s it — you\'re ready to go!',
     view: 'studio',
     position: 'bottom',
   },
