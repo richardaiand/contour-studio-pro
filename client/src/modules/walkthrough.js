@@ -32,7 +32,7 @@ const STEPS = [
     position: 'right',
   },
   {
-    target: '#areaValue',
+    target: '.area-inputs',
     title: 'Area Size',
     body: 'Set the size of your terrain area. Supports km, meters, miles, feet, and acres. The blue box on the map shows your selection. Use the dropdown to change units.',
     view: 'map',
