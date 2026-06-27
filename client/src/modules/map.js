@@ -604,12 +604,20 @@ export function computeBounds(center, sizeMeters = 1000) {
 }
 
 export function captureMapThumbnail() {
-  if (!map) return null;
-  try {
-    map.triggerRepaint();
-    const canvas = map.getCanvas();
-    return canvas.toDataURL('image/jpeg', 0.7);
-  } catch {
-    return null;
-  }
+  return new Promise((resolve) => {
+    if (!map) return resolve(null);
+    try {
+      map.once('render', () => {
+        try {
+          const canvas = map.getCanvas();
+          resolve(canvas.toDataURL('image/jpeg', 0.7));
+        } catch {
+          resolve(null);
+        }
+      });
+      map.triggerRepaint();
+    } catch {
+      resolve(null);
+    }
+  });
 }

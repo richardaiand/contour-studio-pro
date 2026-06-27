@@ -90,7 +90,7 @@ async function init() {
     const view = getCurrentView();
     if (view === 'map') {
       const { captureMapThumbnail } = await import('./modules/map.js');
-      const thumb = captureMapThumbnail();
+      const thumb = await captureMapThumbnail();
       if (thumb) body.thumbnail = thumb;
     } else if (view === 'studio') {
       const { captureStudioThumbnail } = await import('./modules/viewport.js');
