@@ -1,6 +1,6 @@
 {
   "name": "contour-studio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AI-powered 3D terrain visualization from addresses, DEMs, and topographic maps",
   "private": true,
   "type": "module",

@@ -1,4 +1,4 @@
-# Contour Studio — Development Roadmap
+# Contour Studio Pro — Development Roadmap
 
 ## Demo Location: San Francisco
 - Iconic hills, immediately recognizable
@@ -20,74 +20,106 @@
 
 ---
 
-## V2 — Site Intelligence
+## V2 — Site Intelligence (DONE)
 
 ### 2.1 Utility Line Overlays
-- Integrate San Francisco DataSF sewer main GIS data via ArcGIS REST API
+- DataSF sewer/water main GIS data via Socrata API
+- ArcGIS/Socrata REST API client with fallback to sample data
 - Render pipe locations as low-poly cylinders on the 3D model
-- Proof of concept for one city; business plan mentions municipal GIS partnerships
+- Toggle buttons for sewer/water in studio sidebar
 - Files: `server/routes/utilities.js`, `server/services/utilities/arcgis.js`, `server/services/utilities/sources.js`
 - Client: `client/src/modules/utilities.js`
 
 ### 2.2 3D Pipe/Fitting Library
-- Simple cylinders, elbows, junctions
-- Show pipe routing in 3D
-- Files: `server/services/terrain/fittings.js`, `client/src/modules/pipe-library.js`
+- Generate pipe mesh data (straight, elbow, junction, valve)
+- Cylinder geometry with proper normals and UVs
+- Color-coded by utility type
+- Files: `server/services/terrain/fittings.js`
 
 ### 2.3 AI Map Legend Understanding
-- Improve vision prompt to extract: legend symbols, scale bar ratio, contour interval, north arrow, datum
-- Return structured data
-- Files: `server/services/ai/legend-analyzer.js`
+- Enhanced vision prompt extracts: legend symbols, scale ratio, contour interval, north arrow, datum, CRS, title, publisher, edition
+- Returns structured JSON
+- Toggle between basic and full legend analysis on map upload
+- Files: `server/services/ai/legend-analyzer.js`, `server/routes/maps.js`
 
 ### 2.4 Geometry Cleanup
-- Review mesh generation for clean vertices, normals, indices
-- Remove degenerate triangles
+- Remove degenerate triangles (zero-area cross product check)
+- Merge duplicate vertices (spatial hash, 3-decimal precision)
+- Recompute normals after cleanup
+- Wired into worker after gridToMesh
 - Files: `server/services/terrain/cleanup.js`
 
 ---
 
-## V3 — Environmental Context + Design Tools
+## V3 — Environmental Context + Design Tools (DONE)
 
 ### 3.1 AI Environmental Site Report
-- Open-Meteo API for climate/precipitation averages
-- USGS Earthquake API for seismic risk
-- ISRIC SoilGrids for soil types
-- AI summarizes into a site report panel
-- Files: `server/routes/environment.js`, `server/services/environment/*.js`
+- Open-Meteo Archive API: 10-year climate averages (temp, precip, snow, climate zone)
+- Open-Meteo Forecast API: current weather conditions
+- USGS Earthquake API: 25-year seismic history, risk classification (low to very high)
+- ISRIC SoilGrids API: soil composition, USDA texture classification
+- Promise.allSettled for parallel fetching with graceful degradation
+- AI-generated summary combining all data sources
+- Client panel with climate stats, seismic risk badge, soil composition
+- Files: `server/routes/environment.js`, `server/services/environment/climate.js`, `seismic.js`, `soil.js`
 - Client: `client/src/modules/environment.js`
 
 ### 3.2 Tree/Rock Placement
-- Click on terrain to place objects
-- Small low-poly library: tree, rock, building footprint
-- Scale to real-world sizes
-- Files: `client/src/modules/placement.js`, `client/src/modules/object-library.js`
+- Click on terrain to place 3D objects
+- Low-poly library: tree (trunk + 3-layer cones), rock (distorted icosahedron), building (box + roof)
+- Scale to real-world sizes (tree 8m, rock 2m, building 6m)
+- Raycaster-based terrain intersection
+- Object palette in studio sidebar with active state
+- Clear all button
+- Files: `client/src/modules/placement.js`, `client/src/modules/objects/library.js`
 
 ### 3.3 To-Scale People Models
-- Place human figures for scale reference
-- Simple capsule or low-poly human model
-- Files: `client/src/modules/people.js`
+- Low-poly person: body capsule, legs, head, arms (1.75m default)
+- Eye height stored for walk mode spawn
+- Same placement system as trees/rocks
+- Files: `client/src/modules/objects/library.js`
 
 ### 3.4 Geometry Fixes
-- Any remaining mesh issues from testing
+- Degenerate triangle removal and vertex welding implemented in V2.4
+- Normal recomputation after cleanup
+- Mesh test updated for solid block vertex count
 
 ---
 
-## V4 — Immersive Walkthrough
+## V4 — Immersive Walkthrough (DONE)
 
 ### 4.1 Drop a Person Model
-- Like Google Maps pegman
-- Click on terrain to drop a person
-- Files: `client/src/modules/walk-mode.js`
+- Person model placed via object palette
+- Used as scale reference and spawn point
 
 ### 4.2 First-Person View
 - PointerLockControls for mouse look
-- WASD movement
-- Real-time exploration
-- Files: `client/src/modules/first-person.js`
+- WASD + arrow keys movement (8 m/s)
+- Real-time exploration on studio canvas
+- Walk HUD overlay with controls hint
+- Files: `client/src/modules/walk-mode.js`
 
 ### 4.3 Walk Around the Site
-- Collision with terrain (height-based)
-- Esc to exit back to orbit view
+- Terrain collision via down-raycasting (height-based)
+- Camera follows terrain surface at eye level (1.65m)
+- Esc key or "Back to Studio" button exits
+- OrbitControls restored on exit
+- Files: `client/src/modules/walk-mode.js`
+
+---
+
+## Additional Features (DONE)
+
+### Customizable Rectangle
+- Separate W × H area inputs (areaValue + areaValue2)
+- rotatedSquare supports non-square dimensions
+- Store tracks sizeMeters and sizeMeters2
+- Updated formatSizeLabel, unit limits, area inputs
+
+### Security
+- Removed /api/debug endpoint
+- All new routes require authentication
+- Environment route uses Promise.allSettled for graceful degradation
 
 ---
 
@@ -95,29 +127,16 @@
 
 ### Pages
 1. **Login** — sign in / create account
-2. **Map** — area selection, project list, address search
-3. **Studio** — full-screen 3D model, placement tools, projects sidebar
-4. **Walk** — first-person full-screen exploration
+2. **Dashboard** — project list
+3. **Map** — area selection, address search, map upload
+4. **Studio** — full-screen 3D model, placement tools, environmental report, utilities, walk mode
+5. **Walk** — first-person full-screen exploration (uses studio canvas with HUD overlay)
 
 ### Navigation Flow
 ```
-Login → [Map page] → Generate → [Studio page] → Drop person → [Walk page]
-                ← Back                          ← Back
+Login → [Map page] → Generate → [Studio page] → Enter Walk → [Walk HUD overlay]
+                ← Back                          ← Back to Studio
 ```
-
-### Session Handling
-- Page loads → check session → signed in? → map page
-- Page loads → check session → not signed in? → login page
-- Sign in → redirect to map page
-- Logout → back to login page
-- Returning users skip login
-
-### Files
-- `client/src/router.js` — simple view switcher
-- `client/src/views/login.js`
-- `client/src/views/map.js`
-- `client/src/views/studio.js`
-- `client/src/views/walk.js`
 
 ---
 
@@ -130,14 +149,3 @@ Login → [Map page] → Generate → [Studio page] → Drop person → [Walk pa
 6. Drop into first-person and walk around the hills
 7. Export to OBJ/STL
 8. Mention V2 utility partnerships as business model
-
----
-
-## Build Priority Before Monday
-1. ~~Fix remaining bugs~~ (done)
-2. Environmental AI report (V3) — high impact, pure API integration
-3. AI legend understanding (V2) — quick prompt change
-4. Utility overlay demo (V2) — San Francisco sewer data as cylinders
-5. Tree/rock placement (V3) — 3D interactivity
-6. First-person walk (V4) — wow factor
-7. Geometry cleanup — review pass
