@@ -85,6 +85,7 @@ export async function fetchDemForBounds(bounds, detailLevel = 'standard') {
 
   // 2. Fallback to Open-Meteo (free, no key)
   try {
+    await new Promise((r) => setTimeout(r, 2000));
     const data = await openmeteo.fetchElevation(fetchBounds, { ...detail, detailLevel });
     return {
       ...data,
