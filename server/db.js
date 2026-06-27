@@ -142,6 +142,10 @@ export function runMigrations() {
     database.exec('ALTER TABLE projects ADD COLUMN thumbnail TEXT');
     console.log('Added thumbnail column to projects');
   }
+  if (!columns.find((c) => c.name === 'terrain_versions_json')) {
+    database.exec('ALTER TABLE projects ADD COLUMN terrain_versions_json TEXT DEFAULT "[]"');
+    console.log('Added terrain_versions_json column to projects');
+  }
 
   console.log('Database tables created/verified');
 }

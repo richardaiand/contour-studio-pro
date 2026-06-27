@@ -56,6 +56,9 @@ export async function selectProject(project) {
           if (elevLow) elevLow.textContent = `${data.project.terrainData.minElevation.toFixed(0)}m`;
           if (elevHigh) elevHigh.textContent = `${data.project.terrainData.maxElevation.toFixed(0)}m`;
         });
+        import('./terrain.js').then(({ renderVersionList }) => {
+          renderVersionList(data.project.terrainVersions, data.project.terrainData);
+        });
       });
     } else {
       navigate('map');

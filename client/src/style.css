@@ -788,6 +788,66 @@ button.full {
   font-family: monospace;
 }
 
+/* Version history */
+.version-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.version-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.version-item:hover {
+  border-color: var(--primary);
+}
+
+.version-item.active {
+  border-color: var(--primary);
+  background: var(--panel);
+}
+
+.version-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.version-item-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.version-item-meta {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.version-item button {
+  padding: 4px 6px;
+  color: var(--muted);
+}
+
+.version-item button:hover {
+  color: var(--primary);
+}
+
+.version-item.active button {
+  color: var(--primary);
+}
+
 /* Object palette */
 .object-palette {
   display: grid;

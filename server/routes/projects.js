@@ -12,6 +12,7 @@ function serializeProject(row) {
     center: parseJson(row.center_json),
     sourceInfo: parseJson(row.source_info_json),
     terrainData: parseJson(row.terrain_data_json),
+    terrainVersions: parseJson(row.terrain_versions_json, []),
     thumbnail: row.thumbnail || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

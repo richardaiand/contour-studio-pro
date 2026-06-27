@@ -292,6 +292,14 @@ async function generateTerrain() {
     setStatus(statusMsg, 'ok');
     loadProjects();
     navigate('studio');
+
+    try {
+      const projData = await api(`/projects/${data.projectId}`);
+      if (projData.project?.terrainVersions) {
+        store.set({ currentProject: { ...store.get('currentProject'), terrainVersions: projData.project.terrainVersions } });
+        renderVersionList(projData.project.terrainVersions, data);
+      }
+    } catch {}
   } catch (e) {
     setLoading(false);
     setStatus('Generation failed: ' + e.message, 'error');
@@ -446,4 +454,60 @@ async function exportTerrain(format) {
     const hasTerrain = !!store.get('currentTerrain');
     buttons.forEach((b) => (b.disabled = !hasTerrain));
   }
+}
+
+export function renderVersionList(versions, currentTerrain) {
+  const list = $('versionList');
+  if (!list) return;
+
+  if (!versions || versions.length === 0) {
+    list.innerHTML = '<div class="hint">Previous generations will appear here.</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  versions.forEach((v, i) => {
+    const item = document.createElement('div');
+    item.className = 'version-item';
+    const date = new Date(v.savedAt || 0);
+    const isActive = currentTerrain && v.mesh && currentTerrain.mesh &&
+      v.mesh.positions?.length === currentTerrain.mesh.positions?.length;
+    if (isActive) item.classList.add('active');
+
+    const detailLabel = v.sourceDescription || v.resolutionMeters
+      ? `${v.resolutionMeters}m res`
+      : 'Terrain';
+
+    item.innerHTML = `
+      <div class="version-item-info">
+        <div class="version-item-title">${detailLabel}</div>
+        <div class="version-item-meta">${date.toLocaleString()}</div>
+      </div>
+      <button class="ghost sm" title="Load this version">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>
+        </svg>
+      </button>
+    `;
+
+    item.querySelector('button').addEventListener('click', (e) => {
+      e.stopPropagation();
+      loadVersion(v);
+    });
+
+    list.appendChild(item);
+  });
+}
+
+function loadVersion(version) {
+  const rotation = store.get('rotation') || 0;
+  store.set({ currentTerrain: version });
+  setTerrain(version.mesh, rotation);
+  if (version.originalBounds && version.fetchBounds) {
+    drawSelectionOutline(version.originalBounds, version.fetchBounds);
+  }
+  updateStats(version);
+  const versions = store.get('currentProject')?.terrainVersions || [];
+  renderVersionList(versions, version);
+  setStatus('Loaded previous version.', 'ok');
 }
