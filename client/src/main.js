@@ -54,24 +54,37 @@ async function init() {
     }
   });
 
-  // Settings buttons
-  ['settingsBtn', 'settingsBtnDashboard'].forEach((id) => {
+  // Settings buttons (all views)
+  ['settingsBtn', 'settingsBtnDashboard', 'settingsBtnMap', 'settingsBtnStudio'].forEach((id) => {
     $(id)?.addEventListener('click', () => $('settingsDlg')?.showModal());
   });
 
-  // Sign out buttons on all views
-  ['authBtn', 'authBtnStudio', 'authBtnDashboard'].forEach((id) => {
-    const btn = $(id);
-    if (btn) {
-      btn.addEventListener('click', () => {
-        store.set({ user: null, settings: null, currentProject: null });
-        localStorage.removeItem('cs-signed-in');
-        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-        setStatus('Signed out.', '');
-        navigate('login');
-      });
-    }
+  // Sign out button (inside settings dialog)
+  $('signOutBtn')?.addEventListener('click', () => {
+    $('settingsDlg')?.close();
+    store.set({ user: null, settings: null, currentProject: null });
+    localStorage.removeItem('cs-signed-in');
+    document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    setStatus('Signed out.', '');
+    navigate('login');
   });
+
+  // Legacy sign out buttons (if any remain)
+  ['authBtn', 'authBtnStudio', 'authBtnDashboard'].forEach((id) => {
+    $(id)?.addEventListener('click', () => {
+      store.set({ user: null, settings: null, currentProject: null });
+      localStorage.removeItem('cs-signed-in');
+      document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      setStatus('Signed out.', '');
+      navigate('login');
+    });
+  });
+
+  // Tutorial/help buttons
+  ['helpBtnDashboard', 'helpBtnMap', 'helpBtnStudio'].forEach((id) => {
+    $(id)?.addEventListener('click', () => $('tutorialDlg')?.showModal());
+  });
+  $('closeTutorial')?.addEventListener('click', () => $('tutorialDlg')?.close());
 
   // Edit Site button → back to map
   $('editSiteBtn')?.addEventListener('click', () => navigate('map'));

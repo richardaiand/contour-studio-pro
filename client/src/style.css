@@ -1094,3 +1094,37 @@ dialog input {
     max-height: 40vh;
   }
 }
+
+.settings-divider {
+  border: none;
+  border-top: 1px solid var(--panel-border);
+  margin: 16px 0 8px;
+}
+
+.tutorial-content {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.tutorial-section {
+  margin-bottom: 16px;
+}
+
+.tutorial-section h4 {
+  margin: 0 0 4px 0;
+  font-size: 13px;
+  color: var(--primary);
+}
+
+.tutorial-section p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.tutorial-section strong {
+  color: var(--text);
+  font-weight: 600;
+}
