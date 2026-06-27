@@ -9,7 +9,6 @@ let navigationHistory = [];
 
 export function initRouter() {
   // Wire up navigation buttons
-  document.getElementById('backToMap')?.addEventListener('click', () => goBack());
   document.getElementById('exitWalk')?.addEventListener('click', () => goBack());
   document.getElementById('backToDashboard')?.addEventListener('click', () => navigate('dashboard'));
   document.getElementById('backToDashboardFromMap')?.addEventListener('click', () => navigate('dashboard'));

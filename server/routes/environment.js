@@ -1,6 +1,7 @@
 import { fetchClimateData, fetchCurrentWeather } from '../services/environment/climate.js';
-import { fetchSeismicData, calculateSeismicRisk } from '../services/environment/seismic.js';
-import { fetchSoilData, classifySoil } from '../services/environment/soil.js';
+import { fetchSeismicData } from '../services/environment/seismic.js';
+import { fetchSoilData } from '../services/environment/soil.js';
+import { AppError } from '../errors.js';
 
 export default async function (fastify) {
   fastify.get('/', {
@@ -10,7 +11,7 @@ export default async function (fastify) {
     const lon = parseFloat(req.query.lon);
 
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      return { error: 'lat and lon are required' };
+      throw new AppError('lat and lon are required', 400, 'BAD_REQUEST');
     }
 
     const [climateResult, seismicResult, soilResult, weatherResult] = await Promise.allSettled([

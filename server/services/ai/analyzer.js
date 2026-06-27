@@ -82,6 +82,7 @@ If information is not visible, use null.`,
       temperature: 0.2,
       max_tokens: 2048,
     }),
+    signal: AbortSignal.timeout(90000),
   });
 
   if (!res.ok) {

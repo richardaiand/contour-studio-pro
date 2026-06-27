@@ -1,9 +1,10 @@
 import { fetchUtilities, getAvailableUtilities } from '../services/utilities/sources.js';
+import { AppError } from '../errors.js';
 
 export default async function (fastify) {
   fastify.get('/', {
     onRequest: [fastify.authenticate],
-  }, async (req) => {
+  }, async (req, reply) => {
     const lat = parseFloat(req.query.lat);
     const lon = parseFloat(req.query.lon);
     const utilityType = req.query.type || 'sewer';
@@ -13,7 +14,7 @@ export default async function (fastify) {
       try {
         bounds = JSON.parse(req.query.bounds);
       } catch {
-        return { error: 'Invalid bounds JSON' };
+        throw new AppError('Invalid bounds JSON', 400, 'BAD_REQUEST');
       }
     } else if (Number.isFinite(lat) && Number.isFinite(lon)) {
       const size = 0.01;
@@ -24,7 +25,7 @@ export default async function (fastify) {
         maxLon: lon + size,
       };
     } else {
-      return { error: 'lat/lon or bounds required' };
+      throw new AppError('lat/lon or bounds required', 400, 'BAD_REQUEST');
     }
 
     const features = await fetchUtilities(bounds, utilityType);

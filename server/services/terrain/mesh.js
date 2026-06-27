@@ -7,8 +7,14 @@ export function gridToMesh(grid, bounds, options = {}) {
     throw new Error('Grid must be at least 2x2');
   }
 
-  const minElevation = Math.min(...grid.flat());
-  const maxElevation = Math.max(...grid.flat());
+  let minElevation = Infinity;
+  let maxElevation = -Infinity;
+  for (const row of grid) {
+    for (const v of row) {
+      if (v < minElevation) minElevation = v;
+      if (v > maxElevation) maxElevation = v;
+    }
+  }
   const elevationRange = Math.max(0.001, maxElevation - minElevation);
 
   const positions = [];

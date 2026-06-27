@@ -25,6 +25,7 @@ export default async function (fastify) {
           Authorization: `Bearer ${key}`,
           Accept: 'application/json',
         },
+        signal: AbortSignal.timeout(15000),
       });
 
       if (!res.ok) {

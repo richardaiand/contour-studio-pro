@@ -4,17 +4,20 @@ import { $ } from '../utils.js';
 import { store } from '../store/index.js';
 
 let renderer, scene, camera, controls, terrainMesh, gridHelper, northArrow;
+let lastTheme = null;
+let initialized = false;
+let animFrameId = null;
 
 export function initViewport() {
   const canvas = $('scene');
   if (!canvas) return;
   if (canvas.clientWidth === 0 || canvas.clientHeight === 0) return;
 
-  if (renderer) {
-    renderer.dispose();
+  if (initialized) {
+    return { renderer, scene, camera, controls };
   }
 
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(canvas.clientWidth, canvas.clientHeight);
 
@@ -48,10 +51,14 @@ export function initViewport() {
 
   applyThemeColors();
   store.subscribe((state) => {
-    applyThemeColors(state.theme);
+    if (state.theme !== lastTheme) {
+      applyThemeColors(state.theme);
+    }
   });
 
   window.addEventListener('resize', resize);
+
+  initialized = true;
   animate();
 
   return { renderer, scene, camera, controls };
@@ -110,6 +117,7 @@ function createNorthArrow() {
 
 function applyThemeColors(theme = store.get('theme')) {
   if (!scene) return;
+  lastTheme = theme;
 
   // Studio viewport always uses light background for better terrain visibility
   scene.background = new THREE.Color(0xf4f6f9);
@@ -222,7 +230,7 @@ export function triggerResize() {
 }
 
 function animate() {
-  requestAnimationFrame(animate);
+  animFrameId = requestAnimationFrame(animate);
   if (controls) controls.update();
   if (renderer && scene && camera) renderer.render(scene, camera);
 }

@@ -59,10 +59,7 @@ async function init() {
     }
   });
 
-  // Settings buttons (all views)
-  ['settingsBtn', 'settingsBtnDashboard', 'settingsBtnMap', 'settingsBtnStudio'].forEach((id) => {
-    $(id)?.addEventListener('click', () => $('settingsDlg')?.showModal());
-  });
+  // Settings buttons are wired in initSettings() — no duplicate registration here
 
   // Sign out button (inside settings dialog)
   $('signOutBtn')?.addEventListener('click', () => {

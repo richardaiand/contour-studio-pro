@@ -16,7 +16,7 @@ export const OBJECT_LIBRARY = {
   building: {
     label: 'Building',
     defaultHeight: 6,
-    create: (h) => createBuilding(h),
+    create: (h) => createBuilding(10, h, 10),
     icon: 'building',
   },
   person: {

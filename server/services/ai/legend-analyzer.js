@@ -84,6 +84,7 @@ export async function analyzeMapLegend({ imageBuffer, mimeType, userId }) {
       temperature: 0.2,
       max_tokens: 4096,
     }),
+    signal: AbortSignal.timeout(90000),
   });
 
   if (!res.ok) {

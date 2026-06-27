@@ -1,3 +1,5 @@
+import { isProduction } from './config.js';
+
 export class AppError extends Error {
   constructor(message, statusCode = 500, code = 'INTERNAL_ERROR') {
     super(message);
@@ -27,8 +29,10 @@ export function errorHandler(error, req, reply) {
     });
   }
 
-  // Return actual error message for debugging (temporarily enabled)
   reply.status(500).send({
-    error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' },
+    error: {
+      code: 'INTERNAL_ERROR',
+      message: isProduction ? 'Internal server error' : (error.message || 'Internal server error'),
+    },
   });
 }

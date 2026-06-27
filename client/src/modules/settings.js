@@ -12,8 +12,9 @@ const PRESETS = [
 let currentModels = [];
 
 export function initSettings() {
-  $('settingsBtn')?.addEventListener('click', openSettings);
-  $('settingsBtnDashboard')?.addEventListener('click', openSettings);
+  ['settingsBtn', 'settingsBtnDashboard', 'settingsBtnMap', 'settingsBtnStudio'].forEach((id) => {
+    $(id)?.addEventListener('click', openSettings);
+  });
   $('cancelSettings')?.addEventListener('click', () => $('settingsDlg')?.close());
   $('saveSettings')?.addEventListener('click', saveSettings);
 
@@ -66,6 +67,9 @@ export function initSettings() {
 }
 
 async function openSettings() {
+  const dlg = $('settingsDlg');
+  if (dlg?.open) return;
+
   const settings = store.get('settings') || {};
   $('endpoint').value = settings.providerEndpoint || '';
   $('model').value = settings.providerModel || '';

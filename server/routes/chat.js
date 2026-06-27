@@ -60,6 +60,10 @@ export default async function (fastify) {
     const base = endpoint.replace(/\/+$/, '');
     const upstreamUrl = base + '/chat/completions';
 
+    const abortController = new AbortController();
+    const closeHandler = () => abortController.abort();
+    req.raw.on('close', closeHandler);
+
     const upstreamRes = await fetch(upstreamUrl, {
       method: 'POST',
       headers: {
@@ -72,14 +76,17 @@ export default async function (fastify) {
         temperature: req.body.temperature ?? 0.7,
         stream: req.body.stream ?? true,
       }),
+      signal: abortController.signal,
     });
 
     if (!upstreamRes.ok) {
+      req.raw.removeListener('close', closeHandler);
       const text = await upstreamRes.text().catch(() => '');
       throw new AppError(`AI provider error ${upstreamRes.status}: ${text.slice(0, 300)}`, 502, 'AI_ERROR');
     }
 
     if (!req.body.stream) {
+      req.raw.removeListener('close', closeHandler);
       const data = await upstreamRes.json();
       return data;
     }
@@ -92,9 +99,6 @@ export default async function (fastify) {
     });
 
     const reader = upstreamRes.body.getReader();
-    const abortController = new AbortController();
-
-    req.raw.on('close', () => abortController.abort());
 
     try {
       while (true) {
@@ -105,6 +109,7 @@ export default async function (fastify) {
     } catch (err) {
       if (err.name !== 'AbortError') req.log.error(err);
     } finally {
+      req.raw.removeListener('close', closeHandler);
       try { await reader.cancel(); } catch {}
       reply.raw.end();
     }

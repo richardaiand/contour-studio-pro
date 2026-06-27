@@ -51,7 +51,7 @@ export function classifySoil(clayPercent, sandPercent) {
 
   if (sandPercent >= 85) return 'Sand';
   if (sandPercent >= 70 && clayPercent < 15) return 'Loamy Sand';
-  if (sandPercent >= 43 && clayPercent < 10) return 'Sand';
+  if (sandPercent >= 43 && clayPercent < 10) return 'Loamy Sand';
   if (clayPercent >= 40 && sandPercent >= 45) return 'Sandy Clay';
   if (clayPercent >= 40 && siltPercent >= 40) return 'Silty Clay';
   if (clayPercent >= 40) return 'Clay';

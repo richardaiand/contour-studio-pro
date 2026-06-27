@@ -320,7 +320,7 @@ function proportionalPadding() {
   return Math.round(minDim * 0.25);
 }
 
-function createRotationHandle(center, sizeMeters, rotation) {
+function createRotationHandle(center, sizeMeters, rotation, sizeMeters2) {
   if (rotationHandle) rotationHandle.remove();
 
   const el = document.createElement('div');
@@ -335,7 +335,7 @@ function createRotationHandle(center, sizeMeters, rotation) {
     </svg>
   `;
 
-  const pos = handlePosition(center, sizeMeters, rotation);
+  const pos = handlePosition(center, sizeMeters, rotation, sizeMeters2);
   rotationHandle = new maplibregl.Marker({
     element: el,
     draggable: false,
@@ -356,9 +356,9 @@ function createRotationHandle(center, sizeMeters, rotation) {
   return rotationHandle;
 }
 
-function handlePosition(center, sizeMeters, rotation) {
-  const half = sizeMeters / 2;
-  const offset = Math.max(15, sizeMeters * 0.2);
+function handlePosition(center, sizeMeters, rotation, sizeMeters2) {
+  const half = (sizeMeters2 || sizeMeters) / 2;
+  const offset = Math.max(15, Math.max(sizeMeters, sizeMeters2 || 0) * 0.2);
   const distance = half + offset;
   const rad = (rotation * Math.PI) / 180;
   // Handle sits at top (north) when rotation=0, rotates with the box
@@ -469,7 +469,7 @@ function setRotation(rotation) {
   const bounds = boundsFromPolygon(rotatedSquare(center, sizeMeters, rotation, sizeMeters2));
   store.set({ center, bounds, sizeMeters, sizeMeters2, rotation });
   updateSelectionLayer(rotatedSquare(center, sizeMeters, rotation, sizeMeters2));
-  createRotationHandle(center, Math.max(sizeMeters, sizeMeters2), rotation);
+  createRotationHandle(center, sizeMeters, rotation, sizeMeters2);
 }
 
 function updateSelection(center, updateStore = true, shouldZoom = false) {
@@ -483,7 +483,7 @@ function updateSelection(center, updateStore = true, shouldZoom = false) {
     store.set({ center, bounds, sizeMeters, sizeMeters2, rotation });
   }
   updateSelectionLayer(polygon);
-  createRotationHandle(center, Math.max(sizeMeters, sizeMeters2), rotation);
+  createRotationHandle(center, sizeMeters, rotation, sizeMeters2);
 
   if (shouldZoom) {
     map.fitBounds(
@@ -643,7 +643,9 @@ export function captureMapThumbnail() {
   return new Promise((resolve) => {
     if (!map) return resolve(null);
     try {
+      const timeout = setTimeout(() => resolve(null), 3000);
       map.once('render', () => {
+        clearTimeout(timeout);
         try {
           const canvas = map.getCanvas();
           resolve(canvas.toDataURL('image/jpeg', 0.7));

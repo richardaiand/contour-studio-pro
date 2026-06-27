@@ -19,6 +19,7 @@ export async function geocodeAddress(address) {
       'User-Agent': config.geocoding.userAgent,
       'Accept': 'application/json',
     },
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!res.ok) {
@@ -63,7 +64,7 @@ async function autocompleteOpenCage(query) {
   url.searchParams.set('autocomplete', '1');
   url.searchParams.set('no_annotations', '1');
 
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
   if (!res.ok) {
     throw new AppError(`Geocoding service error: ${res.status}`, 502, 'GEOCODE_ERROR');
   }
@@ -91,6 +92,7 @@ async function autocompleteNominatim(query) {
       'User-Agent': config.geocoding.userAgent,
       Accept: 'application/json',
     },
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!res.ok) {
@@ -120,6 +122,7 @@ export async function reverseGeocode(lat, lon) {
       'User-Agent': config.geocoding.userAgent,
       Accept: 'application/json',
     },
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!res.ok) {

@@ -65,11 +65,11 @@ export async function fetchCurrentWeather(lat, lon) {
 
 function classifyClimate(avgTempC, avgPrecipMm) {
   if (avgTempC >= 18 && avgPrecipMm < 25) return 'Arid/Desert';
+  if (avgTempC >= 18 && avgPrecipMm >= 25 && avgPrecipMm < 60) return 'Mediterranean';
   if (avgTempC >= 18 && avgPrecipMm < 50) return 'Semi-arid';
   if (avgTempC >= 18 && avgPrecipMm >= 60) return 'Tropical';
   if (avgTempC >= 10 && avgPrecipMm >= 50) return 'Temperate';
   if (avgTempC >= 0 && avgTempC < 10) return 'Continental';
   if (avgTempC < 0) return 'Polar';
-  if (avgTempC >= 18 && avgPrecipMm >= 25 && avgPrecipMm < 60) return 'Mediterranean';
   return 'Temperate';
 }

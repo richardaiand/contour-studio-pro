@@ -1,5 +1,5 @@
 import { getDb, generateId } from '../../db.js';
-import { now } from '../../utils/index.js';
+import { now, parseJson } from '../../utils/index.js';
 
 export function createProjectFromJob(job, dem, mesh) {
   const db = getDb();
@@ -62,8 +62,8 @@ export function updateProjectFromJob(projectId, job, dem, mesh) {
   const terrainData = buildTerrainData(dem, mesh, job.payload);
 
   const existing = db.prepare('SELECT terrain_data_json, terrain_versions_json FROM projects WHERE id = ?').get(projectId);
-  const oldTerrainData = existing?.terrain_data_json ? JSON.parse(existing.terrain_data_json) : null;
-  const versions = existing?.terrain_versions_json ? JSON.parse(existing.terrain_versions_json) : [];
+  const oldTerrainData = parseJson(existing?.terrain_data_json, null);
+  const versions = parseJson(existing?.terrain_versions_json, []);
 
   if (oldTerrainData) {
     versions.unshift({
@@ -100,6 +100,8 @@ function buildTerrainData(dem, mesh, payload) {
       uvs: mesh.uvs,
       colors: mesh.colors,
       indices: mesh.indices,
+      minElevation: mesh.minElevation,
+      maxElevation: mesh.maxElevation,
     },
     originalBounds: dem.originalBounds || payload.bounds,
     fetchBounds: dem.fetchBounds || payload.bounds,

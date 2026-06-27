@@ -16,6 +16,8 @@ let walkHud = null;
 let onKeyDownRef = null;
 let onKeyUpRef = null;
 
+let listenersRegistered = false;
+
 export function initWalkMode(scene, camera, renderer, terrainMesh, orbitControls) {
   terrainMeshRef = terrainMesh;
   cameraRef = camera;
@@ -24,29 +26,32 @@ export function initWalkMode(scene, camera, renderer, terrainMesh, orbitControls
 
   walkHud = document.getElementById('walkHudOverlay');
 
-  onKeyDownRef = (e) => {
-    if (!isWalking) return;
-    switch (e.code) {
-      case 'KeyW': case 'ArrowUp': moveState.forward = true; break;
-      case 'KeyS': case 'ArrowDown': moveState.backward = true; break;
-      case 'KeyA': case 'ArrowLeft': moveState.left = true; break;
-      case 'KeyD': case 'ArrowRight': moveState.right = true; break;
-      case 'Escape': exitWalkMode(); break;
-    }
-  };
+  if (!listenersRegistered) {
+    onKeyDownRef = (e) => {
+      if (!isWalking) return;
+      switch (e.code) {
+        case 'KeyW': case 'ArrowUp': moveState.forward = true; break;
+        case 'KeyS': case 'ArrowDown': moveState.backward = true; break;
+        case 'KeyA': case 'ArrowLeft': moveState.left = true; break;
+        case 'KeyD': case 'ArrowRight': moveState.right = true; break;
+        case 'Escape': exitWalkMode(); break;
+      }
+    };
 
-  onKeyUpRef = (e) => {
-    if (!isWalking) return;
-    switch (e.code) {
-      case 'KeyW': case 'ArrowUp': moveState.forward = false; break;
-      case 'KeyS': case 'ArrowDown': moveState.backward = false; break;
-      case 'KeyA': case 'ArrowLeft': moveState.left = false; break;
-      case 'KeyD': case 'ArrowRight': moveState.right = false; break;
-    }
-  };
+    onKeyUpRef = (e) => {
+      if (!isWalking) return;
+      switch (e.code) {
+        case 'KeyW': case 'ArrowUp': moveState.forward = false; break;
+        case 'KeyS': case 'ArrowDown': moveState.backward = false; break;
+        case 'KeyA': case 'ArrowLeft': moveState.left = false; break;
+        case 'KeyD': case 'ArrowRight': moveState.right = false; break;
+      }
+    };
 
-  document.addEventListener('keydown', onKeyDownRef);
-  document.addEventListener('keyup', onKeyUpRef);
+    document.addEventListener('keydown', onKeyDownRef);
+    document.addEventListener('keyup', onKeyUpRef);
+    listenersRegistered = true;
+  }
 }
 
 export function enterWalkMode(startPos = null) {
@@ -69,12 +74,22 @@ export function enterWalkMode(startPos = null) {
 
   walkControls.lock();
 
+  const lockTimeout = setTimeout(() => {
+    if (!isWalking) {
+      try { walkControls.dispose(); } catch {}
+      walkControls = null;
+      if (orbitControlsRef) orbitControlsRef.enabled = true;
+    }
+  }, 3000);
+
   walkControls.addEventListener('lock', () => {
+    clearTimeout(lockTimeout);
     isWalking = true;
     if (walkHud) walkHud.classList.remove('hidden');
   });
 
   walkControls.addEventListener('unlock', () => {
+    clearTimeout(lockTimeout);
     if (isWalking) {
       exitWalkMode();
     }

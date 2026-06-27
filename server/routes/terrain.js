@@ -7,6 +7,7 @@ import { AppError } from '../errors.js';
 export default async function (fastify) {
   // Generate terrain from bounds
   fastify.post('/generate', {
+    onRequest: [fastify.authenticate],
     schema: {
       body: {
         type: 'object',
@@ -61,6 +62,8 @@ export default async function (fastify) {
         uvs: mesh.uvs,
         colors: mesh.colors,
         indices: mesh.indices,
+        minElevation: mesh.minElevation,
+        maxElevation: mesh.maxElevation,
       },
     };
   });

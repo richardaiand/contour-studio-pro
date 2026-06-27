@@ -16,23 +16,22 @@ export async function fetchSeismicData(lat, lon, radiusKm = 100) {
 
   let maxMagnitude = 0;
   let totalCount = features.length;
-  const recentEvents = [];
+  const allEvents = [];
 
   for (const f of features) {
     const mag = f.properties?.mag || 0;
     if (mag > maxMagnitude) maxMagnitude = mag;
 
-    if (recentEvents.length < 10) {
-      recentEvents.push({
-        magnitude: Math.round(mag * 10) / 10,
-        place: f.properties?.place || 'Unknown',
-        time: f.properties?.time || 0,
-        url: f.properties?.url || null,
-      });
-    }
+    allEvents.push({
+      magnitude: Math.round(mag * 10) / 10,
+      place: f.properties?.place || 'Unknown',
+      time: f.properties?.time || 0,
+      url: f.properties?.url || null,
+    });
   }
 
-  recentEvents.sort((a, b) => b.magnitude - a.magnitude);
+  allEvents.sort((a, b) => b.magnitude - a.magnitude);
+  const recentEvents = allEvents.slice(0, 10);
 
   return {
     maxMagnitude: Math.round(maxMagnitude * 10) / 10,

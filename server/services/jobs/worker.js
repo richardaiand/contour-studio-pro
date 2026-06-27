@@ -130,6 +130,8 @@ async function processTerrainJob(job, setProgress) {
         uvs: mesh.uvs,
         colors: mesh.colors,
         indices: mesh.indices,
+        minElevation: mesh.minElevation,
+        maxElevation: mesh.maxElevation,
       },
     },
   });

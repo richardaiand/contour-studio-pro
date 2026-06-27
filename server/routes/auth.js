@@ -35,7 +35,18 @@ export default async function (fastify) {
     return { user, token, settings: getUserSettings(user.id) };
   });
 
-  fastify.post('/signin', async (req, reply) => {
+  fastify.post('/signin', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['username', 'password'],
+        properties: {
+          username: { type: 'string', minLength: 1 },
+          password: { type: 'string', minLength: 1 },
+        },
+      },
+    },
+  }, async (req, reply) => {
     const { username, password } = req.body;
     const user = await authenticateUser(username, password);
     const token = signToken({ userId: user.id, username: user.username });
@@ -60,7 +71,21 @@ export default async function (fastify) {
     return { user, settings };
   });
 
-  fastify.patch('/settings', { onRequest: [fastify.authenticate] }, async (req, reply) => {
+  fastify.patch('/settings', {
+    onRequest: [fastify.authenticate],
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          providerEndpoint: { type: 'string' },
+          providerModel: { type: 'string' },
+          apiKey: { type: 'string' },
+          theme: { type: 'string', enum: ['dark', 'light'] },
+          defaultDetail: { type: 'string', enum: ['draft', 'standard', 'survey'] },
+        },
+      },
+    },
+  }, async (req, reply) => {
     const userId = req.user.userId;
     const { providerEndpoint, providerModel, apiKey, theme, defaultDetail } = req.body;
 
@@ -116,7 +141,6 @@ export default async function (fastify) {
     const row = getDb()
       .prepare('SELECT encrypted_api_key FROM user_settings WHERE user_id = ?')
       .get(req.user.userId);
-    if (!row?.encrypted_api_key) return { hasKey: false };
-    return { hasKey: true, apiKey: decrypt(row.encrypted_api_key) };
+    return { hasKey: !!row?.encrypted_api_key };
   });
 }

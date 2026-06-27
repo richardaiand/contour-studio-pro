@@ -47,7 +47,7 @@ function expandToBoundsToMinimum(originalBounds) {
     wasExpanded,
     originalBounds,
     expansionNote: wasExpanded
-      ? `Selected area was ${calculateAreaKm2(originalBounds).toFixed(4)} km², below the 0.01 km² minimum. Expanded to ${calculateAreaKm2({
+      ? `Selected area was ${calculateAreaKm2(originalBounds).toFixed(4)} km², below the ${(MIN_SIDE_METERS * MIN_SIDE_METERS / 1000000).toFixed(2)} km² minimum. Expanded to ${calculateAreaKm2({
           minLat: latMid - neededLatSpan / 2,
           maxLat: latMid + neededLatSpan / 2,
           minLon: lonMid - neededLonSpan / 2,
@@ -72,7 +72,7 @@ export async function fetchDemForBounds(bounds, detailLevel = 'standard') {
       return {
         ...data,
         detailLevel,
-        sources: ['opentopography'],
+        sources: [data.source || 'opentopography'],
         originalBounds: bounds,
         fetchBounds,
         wasExpanded: expansion.wasExpanded,
@@ -85,7 +85,6 @@ export async function fetchDemForBounds(bounds, detailLevel = 'standard') {
 
   // 2. Fallback to Open-Meteo (free, no key)
   try {
-    await new Promise((r) => setTimeout(r, 2000));
     const data = await openmeteo.fetchElevation(fetchBounds, { ...detail, detailLevel });
     return {
       ...data,

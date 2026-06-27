@@ -153,3 +153,10 @@ export function runMigrations() {
 export function generateId() {
   return randomUUID();
 }
+
+// CLI entry point for running migrations standalone
+if (process.argv[1]?.endsWith('db.js') && process.argv[2] === 'migrate') {
+  runMigrations();
+  console.log('Migrations complete');
+  process.exit(0);
+}

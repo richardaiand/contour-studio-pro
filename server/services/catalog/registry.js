@@ -27,7 +27,7 @@ export function seedCatalog() {
       source.license,
       source.accessNotes,
       source.isDirectDownload ? 1 : 0,
-      source.isActive ? 1 : 0,
+      (source.isActive ?? true) ? 1 : 0,
       now()
     );
   }
@@ -42,7 +42,7 @@ export function findSourcesForBounds(bounds) {
   return rows
     .map((row) => ({
       id: row.id,
-      countryCode: row.countryCode,
+      countryCode: row.country_code,
       region: row.region,
       agency: row.agency,
       sourceType: row.source_type,
