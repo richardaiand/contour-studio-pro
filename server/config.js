@@ -31,7 +31,7 @@ export const config = {
   jwtSecret: requireEnv('JWT_SECRET'),
   cookieSecret: requireEnv('COOKIE_SECRET'),
   encryptionKey: hasValidEncryptionKey ? rawEncryptionKey : '',
-  requestTimeout: parseInt(getEnv('REQUEST_TIMEOUT_MS', '120000'), 10),
+  requestTimeout: parseInt(getEnv('REQUEST_TIMEOUT_MS', '300000'), 10),
   rateLimit: {
     max: parseInt(getEnv('RATE_LIMIT_MAX', '100'), 10),
     windowMs: parseInt(getEnv('RATE_LIMIT_WINDOW_MS', '60000'), 10),
