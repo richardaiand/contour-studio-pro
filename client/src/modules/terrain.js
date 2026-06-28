@@ -270,23 +270,25 @@ async function generateTerrain() {
     const rotation = store.get('rotation') || 0;
     navigate('studio');
     requestAnimationFrame(() => {
-      setTerrain(data.mesh, rotation);
-      if (data.originalBounds && data.fetchBounds) {
-        drawSelectionOutline(data.originalBounds, data.fetchBounds);
-      }
-      updateStats(data);
-      setTimeout(async () => {
-        const thumb = captureStudioThumbnail();
-        if (thumb && data.projectId) {
-          try {
-            await api(`/projects/${data.projectId}`, {
-              method: 'PATCH',
-              body: JSON.stringify({ thumbnail: thumb }),
-            });
-            loadProjects();
-          } catch {}
+      setTimeout(() => {
+        setTerrain(data.mesh, rotation);
+        if (data.originalBounds && data.fetchBounds) {
+          drawSelectionOutline(data.originalBounds, data.fetchBounds);
         }
-      }, 500);
+        updateStats(data);
+        setTimeout(async () => {
+          const thumb = captureStudioThumbnail();
+          if (thumb && data.projectId) {
+            try {
+              await api(`/projects/${data.projectId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ thumbnail: thumb }),
+              });
+              loadProjects();
+            } catch {}
+          }
+        }, 500);
+      }, 100);
     });
     setLoading(false);
     const sizeLabel = formatSizeLabel();

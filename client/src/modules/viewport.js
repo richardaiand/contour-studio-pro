@@ -145,6 +145,11 @@ export function setTerrain(meshData, rotationDeg = 0) {
   }
   if (!scene) return;
 
+  // Make sure renderer size matches canvas
+  renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+  camera.aspect = canvas.clientWidth / canvas.clientHeight;
+  camera.updateProjectionMatrix();
+
   if (terrainMesh) {
     scene.remove(terrainMesh);
     terrainMesh.geometry.dispose();
@@ -227,6 +232,7 @@ function resize() {
 export function triggerResize() {
   setTimeout(resize, 50);
   setTimeout(resize, 200);
+  setTimeout(resize, 500);
 }
 
 function animate() {

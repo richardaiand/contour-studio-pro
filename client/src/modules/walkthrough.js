@@ -3,7 +3,7 @@
 
 const STEPS = [
   {
-    target: '.header-actions',
+    target: '.app-header',
     title: 'Top Bar',
     body: 'Here are your tools: Help (?), Theme toggle (sun/moon), and Settings (gear) where you can configure your AI key and sign out.',
     view: 'dashboard',
@@ -78,13 +78,6 @@ const STEPS = [
     target: '.exports',
     title: 'Export',
     body: 'Download your terrain as OBJ, STL, or Heightmap for use in other 3D software like Blender, Unity, or Unreal.',
-    view: 'studio',
-    position: 'right',
-  },
-  {
-    target: '#versionList',
-    title: 'Generation History',
-    body: 'Each time you regenerate, the old version is saved here. Click the eye icon to load a previous version.',
     view: 'studio',
     position: 'right',
   },
