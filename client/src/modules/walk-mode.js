@@ -28,6 +28,7 @@ const SMOOTH_FACTOR = 0.15;
 const MOUSE_SENSITIVITY = 1.5;
 let terrainMeshRef = null;
 let terrainClone = null;
+let terrainBounds = null;
 let onKeyDownRef = null;
 let onKeyUpRef = null;
 let onMouseMoveRef = null;
@@ -79,6 +80,18 @@ export function enterWalkMode(startPos = null) {
     });
     terrainClone = new THREE.Mesh(geo, mat);
     walkScene.add(terrainClone);
+
+    // Compute terrain bounds for collision (clamp avatar inside)
+    geo.computeBoundingBox();
+    const box = geo.boundingBox;
+    if (box) {
+      terrainBounds = {
+        minX: box.min.x + 2,
+        maxX: box.max.x - 2,
+        minZ: box.min.z + 2,
+        maxZ: box.max.z - 2,
+      };
+    }
   }
 
   const ambient = new THREE.AmbientLight(0xffffff, 0.7);
@@ -333,8 +346,14 @@ function updateMovement(delta) {
     moveDir.normalize();
     const distance = MOVE_SPEED * delta;
 
-    const newX = avatar.position.x + moveDir.x * distance;
-    const newZ = avatar.position.z + moveDir.z * distance;
+    let newX = avatar.position.x + moveDir.x * distance;
+    let newZ = avatar.position.z + moveDir.z * distance;
+
+    // Clamp to terrain bounds — don't let the avatar walk off the edge
+    if (terrainBounds) {
+      newX = Math.max(terrainBounds.minX, Math.min(terrainBounds.maxX, newX));
+      newZ = Math.max(terrainBounds.minZ, Math.min(terrainBounds.maxZ, newZ));
+    }
 
     let terrainY;
     if (frameCount % 2 === 0) {
@@ -498,6 +517,8 @@ function cleanupWalkMode() {
     terrainClone.material?.dispose();
     terrainClone = null;
   }
+
+  terrainBounds = null;
 
   if (selectionBorder) {
     walkScene?.remove(selectionBorder);
