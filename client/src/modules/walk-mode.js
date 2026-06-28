@@ -1,30 +1,115 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
+import { createPerson } from './objects/library.js';
 
+let walkScene = null;
+let walkCamera = null;
+let walkRenderer = null;
 let walkControls = null;
-let isWalking = false;
 let walkAnimId = null;
+let avatar = null;
+let isWalking = false;
 let lastTime = 0;
 const moveState = { forward: false, backward: false, left: false, right: false };
 const MOVE_SPEED = 8;
 const EYE_HEIGHT = 1.65;
 let terrainMeshRef = null;
-let cameraRef = null;
-let rendererRef = null;
-let orbitControlsRef = null;
-let walkHud = null;
+let terrainClone = null;
 let onKeyDownRef = null;
 let onKeyUpRef = null;
 let listenersRegistered = false;
+let originalCamera = null;
+let originalControls = null;
 
 export function initWalkMode(scene, camera, renderer, terrainMesh, orbitControls) {
   terrainMeshRef = terrainMesh;
-  cameraRef = camera;
-  rendererRef = renderer;
-  orbitControlsRef = orbitControls;
+  originalCamera = camera;
+  originalControls = orbitControls;
+}
 
-  walkHud = document.getElementById('walkHudOverlay');
+export function enterWalkMode(startPos = null) {
+  if (!terrainMeshRef || !originalCamera) {
+    console.warn('Walk mode: terrain or camera not ready');
+    return false;
+  }
 
+  const canvas = document.getElementById('walkCanvas');
+  if (!canvas || canvas.clientWidth === 0 || canvas.clientHeight === 0) {
+    console.warn('Walk mode: walk canvas not visible');
+    return false;
+  }
+
+  // Create a dedicated scene for walk mode
+  walkScene = new THREE.Scene();
+  walkScene.background = new THREE.Color(0x87ceeb);
+  walkScene.fog = new THREE.Fog(0x87ceeb, 500, 2000);
+
+  // Clone the terrain geometry into the walk scene
+  if (terrainMeshRef.geometry) {
+    const geo = terrainMeshRef.geometry.clone();
+    const mat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.8,
+      metalness: 0.05,
+      side: THREE.DoubleSide,
+    });
+    terrainClone = new THREE.Mesh(geo, mat);
+    walkScene.add(terrainClone);
+  }
+
+  // Add lights
+  const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+  walkScene.add(ambient);
+  const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+  dir.position.set(200, 300, 100);
+  walkScene.add(dir);
+
+  // Create walk camera
+  walkCamera = new THREE.PerspectiveCamera(70, canvas.clientWidth / canvas.clientHeight, 0.1, 5000);
+
+  // Create renderer on the walk canvas
+  walkRenderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: false });
+  walkRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  walkRenderer.setSize(canvas.clientWidth, canvas.clientHeight);
+
+  // Position camera at terrain center or given start position
+  if (startPos) {
+    walkCamera.position.set(startPos.x, startPos.y + EYE_HEIGHT, startPos.z);
+  } else {
+    const center = getTerrainCenter();
+    if (center) {
+      walkCamera.position.set(center.x, center.y + EYE_HEIGHT, center.z);
+    } else {
+      walkCamera.position.set(0, EYE_HEIGHT, 0);
+    }
+  }
+
+  // Create avatar (visible third-person person model)
+  avatar = createPerson(1.75);
+  avatar.position.copy(walkCamera.position);
+  avatar.position.y = walkCamera.position.y - EYE_HEIGHT;
+  walkScene.add(avatar);
+
+  // Create pointer lock controls on the walk canvas
+  try {
+    walkControls = new PointerLockControls(walkCamera, walkRenderer.domElement);
+  } catch (err) {
+    console.error('PointerLockControls creation failed:', err);
+    cleanupWalkMode();
+    return false;
+  }
+
+  walkControls.addEventListener('lock', () => {
+    isWalking = true;
+  });
+
+  walkControls.addEventListener('unlock', () => {
+    if (isWalking) {
+      // Don't fully exit — just pause. User can click to re-lock.
+    }
+  });
+
+  // Register keyboard listeners
   if (!listenersRegistered) {
     onKeyDownRef = (e) => {
       if (!isWalking) return;
@@ -51,127 +136,63 @@ export function initWalkMode(scene, camera, renderer, terrainMesh, orbitControls
     document.addEventListener('keyup', onKeyUpRef);
     listenersRegistered = true;
   }
-}
 
-export function enterWalkMode(startPos = null) {
-  if (!cameraRef || !rendererRef || !terrainMeshRef) {
-    console.warn('Walk mode: missing refs', { cameraRef, rendererRef, terrainMeshRef });
-    return;
+  // Disable orbit controls on the studio view
+  if (originalControls) {
+    originalControls.enabled = false;
   }
 
-  if (orbitControlsRef) {
-    orbitControlsRef.enabled = false;
-  }
-
-  const domElement = rendererRef.domElement;
-
-  try {
-    walkControls = new PointerLockControls(cameraRef, domElement);
-  } catch (err) {
-    console.error('Failed to create PointerLockControls:', err);
-    if (orbitControlsRef) orbitControlsRef.enabled = true;
-    return;
-  }
-
-  if (startPos) {
-    cameraRef.position.set(startPos.x, startPos.y + EYE_HEIGHT, startPos.z);
-  } else {
-    const terrainCenter = getTerrainCenter();
-    if (terrainCenter) {
-      cameraRef.position.set(terrainCenter.x, terrainCenter.y + EYE_HEIGHT, terrainCenter.z);
-    }
-  }
-
-  const lockTimeout = setTimeout(() => {
-    if (!isWalking) {
-      console.warn('Walk mode: pointer lock not acquired within 3s, exiting');
-      try { walkControls.dispose(); } catch {}
-      walkControls = null;
-      if (orbitControlsRef) orbitControlsRef.enabled = true;
-      if (walkHud) walkHud.classList.add('hidden');
-    }
-  }, 3000);
-
-  walkControls.addEventListener('lock', () => {
-    clearTimeout(lockTimeout);
-    isWalking = true;
-    if (walkHud) walkHud.classList.remove('hidden');
-  });
-
-  walkControls.addEventListener('unlock', () => {
-    clearTimeout(lockTimeout);
-    if (isWalking) {
-      exitWalkMode();
-    }
-  });
-
+  // Try to lock pointer
   try {
     walkControls.lock();
   } catch (err) {
     console.error('Pointer lock failed:', err);
-    clearTimeout(lockTimeout);
-    try { walkControls.dispose(); } catch {}
-    walkControls = null;
-    if (orbitControlsRef) orbitControlsRef.enabled = true;
-    if (walkHud) walkHud.classList.add('hidden');
-    return;
   }
 
+  // Start render loop
   lastTime = performance.now();
   walkAnimId = requestAnimationFrame(walkLoop);
+
+  // Handle resize
+  window.addEventListener('resize', onWalkResize);
+
+  return true;
 }
 
-export function exitWalkMode() {
-  isWalking = false;
-
-  if (walkControls) {
-    if (walkControls.isLocked) {
-      walkControls.unlock();
-    }
-    walkControls.dispose();
-    walkControls = null;
-  }
-
-  if (walkAnimId) {
-    cancelAnimationFrame(walkAnimId);
-    walkAnimId = null;
-  }
-
-  moveState.forward = false;
-  moveState.backward = false;
-  moveState.left = false;
-  moveState.right = false;
-
-  if (orbitControlsRef) {
-    orbitControlsRef.enabled = true;
-    orbitControlsRef.update();
-  }
-
-  if (walkHud) walkHud.classList.add('hidden');
+function onWalkResize() {
+  const canvas = document.getElementById('walkCanvas');
+  if (!canvas || !walkRenderer || !walkCamera) return;
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  if (w === 0 || h === 0) return;
+  walkRenderer.setSize(w, h);
+  walkCamera.aspect = w / h;
+  walkCamera.updateProjectionMatrix();
 }
 
 function walkLoop(time) {
-  if (!isWalking) return;
+  if (!walkRenderer) return;
 
   const delta = Math.min((time - lastTime) / 1000, 0.1);
   lastTime = time;
 
   updateMovement(delta);
 
+  walkRenderer.render(walkScene, walkCamera);
   walkAnimId = requestAnimationFrame(walkLoop);
 }
 
 function updateMovement(delta) {
-  if (!isWalking || !walkControls || !walkControls.isLocked) return;
+  if (!walkControls || !walkControls.isLocked) return;
 
   const moveDir = new THREE.Vector3();
   const right = new THREE.Vector3();
   const forward = new THREE.Vector3();
 
-  cameraRef.getWorldDirection(forward);
+  walkCamera.getWorldDirection(forward);
   forward.y = 0;
   forward.normalize();
-  right.crossVectors(forward, cameraRef.up).normalize();
+  right.crossVectors(forward, walkCamera.up).normalize();
 
   if (moveState.forward) moveDir.add(forward);
   if (moveState.backward) moveDir.sub(forward);
@@ -182,32 +203,39 @@ function updateMovement(delta) {
     moveDir.normalize();
     const distance = MOVE_SPEED * delta;
 
-    const newX = cameraRef.position.x + moveDir.x * distance;
-    const newZ = cameraRef.position.z + moveDir.z * distance;
+    const newX = walkCamera.position.x + moveDir.x * distance;
+    const newZ = walkCamera.position.z + moveDir.z * distance;
 
     const terrainY = getTerrainHeightAt(newX, newZ);
-    cameraRef.position.x = newX;
-    cameraRef.position.z = newZ;
-    cameraRef.position.y = terrainY + EYE_HEIGHT;
+    walkCamera.position.x = newX;
+    walkCamera.position.z = newZ;
+    walkCamera.position.y = terrainY + EYE_HEIGHT;
+
+    if (avatar) {
+      avatar.position.x = newX;
+      avatar.position.z = newZ;
+      avatar.position.y = terrainY;
+      avatar.rotation.y = Math.atan2(moveDir.x, moveDir.z);
+    }
   } else {
-    const terrainY = getTerrainHeightAt(cameraRef.position.x, cameraRef.position.z);
-    cameraRef.position.y = terrainY + EYE_HEIGHT;
+    const terrainY = getTerrainHeightAt(walkCamera.position.x, walkCamera.position.z);
+    walkCamera.position.y = terrainY + EYE_HEIGHT;
   }
 }
 
 function getTerrainHeightAt(x, z) {
-  if (!terrainMeshRef) return 0;
+  if (!terrainClone) return 0;
 
   const raycaster = new THREE.Raycaster();
   raycaster.set(new THREE.Vector3(x, 10000, z), new THREE.Vector3(0, -1, 0));
-  const intersects = raycaster.intersectObject(terrainMeshRef, false);
+  const intersects = raycaster.intersectObject(terrainClone, false);
 
   if (intersects.length > 0) {
     return intersects[0].point.y;
   }
 
-  if (terrainMeshRef.geometry?.attributes?.position) {
-    const pos = terrainMeshRef.geometry.attributes.position;
+  if (terrainClone.geometry?.attributes?.position) {
+    const pos = terrainClone.geometry.attributes.position;
     let closestIdx = 0;
     let closestDist = Infinity;
     for (let i = 0; i < pos.count; i++) {
@@ -233,6 +261,62 @@ function getTerrainCenter() {
   box.getCenter(center);
   const terrainY = getTerrainHeightAt(center.x, center.z);
   return new THREE.Vector3(center.x, terrainY, center.z);
+}
+
+export function exitWalkMode() {
+  isWalking = false;
+
+  if (walkControls) {
+    if (walkControls.isLocked) {
+      walkControls.unlock();
+    }
+    walkControls.dispose();
+    walkControls = null;
+  }
+
+  if (walkAnimId) {
+    cancelAnimationFrame(walkAnimId);
+    walkAnimId = null;
+  }
+
+  window.removeEventListener('resize', onWalkResize);
+
+  cleanupWalkMode();
+
+  if (originalControls) {
+    originalControls.enabled = true;
+    originalControls.update();
+  }
+}
+
+function cleanupWalkMode() {
+  if (terrainClone) {
+    terrainClone.geometry?.dispose();
+    terrainClone.material?.dispose();
+    terrainClone = null;
+  }
+
+  if (avatar) {
+    walkScene?.remove(avatar);
+    avatar.traverse((obj) => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
+    });
+    avatar = null;
+  }
+
+  if (walkRenderer) {
+    walkRenderer.dispose();
+    walkRenderer = null;
+  }
+
+  walkScene = null;
+  walkCamera = null;
+
+  moveState.forward = false;
+  moveState.backward = false;
+  moveState.left = false;
+  moveState.right = false;
 }
 
 export function isWalkMode() {

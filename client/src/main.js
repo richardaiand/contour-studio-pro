@@ -231,17 +231,37 @@ async function init() {
 
     initWalkMode(scene, camera, renderer, mesh, controls);
 
-    const canvas = renderer.domElement;
-    canvas.style.cursor = 'none';
+    // Navigate to the dedicated walk view
+    navigate('walk');
 
-    enterWalkMode();
+    // Wait for the walk canvas to be visible, then enter
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const entered = enterWalkMode();
+        if (!entered) {
+          setStatus('Could not enter walk mode. Click the canvas to try again.', 'error');
+        }
+      });
+    });
   });
 
   $('exitWalkMode')?.addEventListener('click', (e) => {
     e.stopPropagation();
-    const renderer = getRenderer();
-    if (renderer?.domElement) renderer.domElement.style.cursor = '';
     exitWalkMode();
+    navigate('studio');
+  });
+
+  $('exitWalk')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    exitWalkMode();
+    navigate('studio');
+  });
+
+  // Click on walk canvas to re-lock pointer
+  $('walkCanvas')?.addEventListener('click', () => {
+    if (!isWalkMode()) {
+      enterWalkMode();
+    }
   });
 
   // Manual save buttons

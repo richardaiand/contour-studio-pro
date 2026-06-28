@@ -101,7 +101,7 @@ function createBuilding(width = 10, height = 6, depth = 10) {
   return group;
 }
 
-function createPerson(height = 1.75) {
+export function createPerson(height = 1.75) {
   const group = new THREE.Group();
 
   const bodyHeight = height * 0.45;

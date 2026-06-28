@@ -63,6 +63,11 @@ function renderView() {
   if (currentView === 'studio') {
     import('./modules/viewport.js').then(({ triggerResize }) => triggerResize());
   }
+
+  // Walk view — dispatch resize so walk canvas gets dimensions
+  if (currentView === 'walk') {
+    window.dispatchEvent(new Event('resize'));
+  }
 }
 
 export function getCurrentView() {
