@@ -59,19 +59,24 @@ export function updateProjectFromJob(projectId, job, dem, mesh) {
     maxElevation: mesh.maxElevation,
   };
 
-  const terrainData = buildTerrainData(dem, mesh, job.payload);
-
   const existing = db.prepare('SELECT terrain_data_json, terrain_versions_json FROM projects WHERE id = ?').get(projectId);
   const oldTerrainData = parseJson(existing?.terrain_data_json, null);
-  const versions = parseJson(existing?.terrain_versions_json, []);
+  let versions = parseJson(existing?.terrain_versions_json, []);
 
   if (oldTerrainData) {
+    const versionNumber = versions.length + 1;
     versions.unshift({
       ...oldTerrainData,
       savedAt: now(),
+      versionLabel: `v${versionNumber}`,
     });
     if (versions.length > 10) versions.length = 10;
   }
+
+  const terrainData = buildTerrainData(dem, mesh, job.payload);
+
+  const currentVersionNumber = versions.length + 1;
+  terrainData.versionLabel = `v${currentVersionNumber}`;
 
   db.prepare(
     `UPDATE projects SET bounds_json = ?, center_json = ?, source_info_json = ?, terrain_data_json = ?, terrain_versions_json = ?, updated_at = ? WHERE id = ?`

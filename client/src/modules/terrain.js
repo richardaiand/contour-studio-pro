@@ -265,7 +265,8 @@ async function generateTerrain() {
     setLoading(true, 'Generating terrain…');
     const data = await pollJob(jobId);
 
-    store.set({ currentTerrain: data, currentProject: { id: data.projectId, title: data.projectTitle } });
+    store.set({ currentTerrain: data });
+    store.set({ currentProject: { ...store.get('currentProject'), id: data.projectId, title: data.projectTitle, isNew: false } });
     const rotation = store.get('rotation') || 0;
     navigate('studio');
     requestAnimationFrame(() => {
@@ -299,8 +300,17 @@ async function generateTerrain() {
 
     try {
       const projData = await api(`/projects/${data.projectId}`);
-      if (projData.project?.terrainVersions) {
-        store.set({ currentProject: { ...store.get('currentProject'), terrainVersions: projData.project.terrainVersions } });
+      if (projData.project?.terrainVersions !== undefined) {
+        const currentProj = store.get('currentProject') || {};
+        store.set({
+          currentProject: {
+            ...currentProj,
+            id: data.projectId,
+            title: data.projectTitle || currentProj.title,
+            terrainVersions: projData.project.terrainVersions,
+            isNew: false,
+          },
+        });
         renderVersionList(projData.project.terrainVersions, data);
       }
     } catch {}
@@ -504,16 +514,22 @@ export function renderVersionList(versions, currentTerrain) {
     const item = document.createElement('div');
     item.className = 'version-item';
     const date = new Date(v.savedAt || 0);
-    const isActive = currentTerrain && v.mesh && currentTerrain.mesh &&
-      v.mesh.positions?.length === currentTerrain.mesh.positions?.length;
+    const isActive = currentTerrain && (
+      (v.versionLabel && currentTerrain.versionLabel && v.versionLabel === currentTerrain.versionLabel) ||
+      (v.savedAt && currentTerrain.savedAt && v.savedAt === currentTerrain.savedAt)
+    );
     if (isActive) item.classList.add('active');
 
-    const detailLabel = v.sourceDescription || (v.resolutionMeters ? `${v.resolutionMeters}m res` : 'Terrain');
+    const label = v.versionLabel || `v${versions.length - i}`;
+    const detail = v.resolutionMeters ? `${v.resolutionMeters}m` : '';
+    const sourceShort = v.sourceDescription
+      ? v.sourceDescription.split(' ')[0]
+      : '';
 
     item.innerHTML = `
       <div class="version-item-info">
-        <div class="version-item-title">${detailLabel}</div>
-        <div class="version-item-meta">${date.toLocaleString()}</div>
+        <div class="version-item-title">${label}${detail ? ` · ${detail}` : ''}${sourceShort ? ` · ${sourceShort}` : ''}</div>
+        <div class="version-item-meta">${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
       </div>
       <button class="ghost sm" title="Load this version">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -541,5 +557,5 @@ function loadVersion(version) {
   updateStats(version);
   const versions = store.get('currentProject')?.terrainVersions || [];
   renderVersionList(versions, version);
-  setStatus('Loaded previous version.', 'ok');
+  setStatus(`Loaded ${version.versionLabel || 'previous version'}.`, 'ok');
 }
