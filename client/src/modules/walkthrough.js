@@ -3,7 +3,7 @@
 
 const STEPS = [
   {
-    target: '.app-header',
+    target: '.header-actions',
     title: 'Top Bar',
     body: 'Here are your tools: Help (?), Theme toggle (sun/moon), and Settings (gear) where you can configure your AI key and sign out.',
     view: 'dashboard',
