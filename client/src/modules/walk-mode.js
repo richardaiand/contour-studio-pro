@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import { createPerson } from './objects/library.js';
+import { store } from '../store/index.js';
 
 let walkScene = null;
 let walkCamera = null;
@@ -8,15 +9,20 @@ let walkRenderer = null;
 let walkControls = null;
 let walkAnimId = null;
 let avatar = null;
+let avatarHead = null;
+let selectionBorder = null;
 let isWalking = false;
 let lastTime = 0;
 let isMoving = false;
 let walkPhase = 0;
 let thirdPerson = false;
+let smoothedY = 0;
 const moveState = { forward: false, backward: false, left: false, right: false };
 const MOVE_SPEED = 8;
 const EYE_HEIGHT = 1.65;
-const THIRD_PERSON_DISTANCE = 4;
+const THIRD_PERSON_DISTANCE = 5;
+const THIRD_PERSON_HEIGHT = 2.5;
+const SMOOTH_FACTOR = 0.15;
 let terrainMeshRef = null;
 let terrainClone = null;
 let onKeyDownRef = null;
@@ -24,6 +30,8 @@ let onKeyUpRef = null;
 let listenersRegistered = false;
 let originalCamera = null;
 let originalControls = null;
+const raycaster = new THREE.Raycaster();
+const downDir = new THREE.Vector3(0, -1, 0);
 
 export function initWalkMode(scene, camera, renderer, terrainMesh, orbitControls) {
   terrainMeshRef = terrainMesh;
@@ -84,16 +92,31 @@ export function enterWalkMode(startPos = null) {
     }
   }
   terrainY = getTerrainHeightAt(startX, startZ);
+  smoothedY = terrainY;
 
   // Avatar
   avatar = createPerson(1.75);
   avatar.position.set(startX, terrainY, startZ);
   walkScene.add(avatar);
 
+  // Find head mesh to hide in first person
+  avatar.traverse((obj) => {
+    if (obj.geometry instanceof THREE.SphereGeometry) {
+      avatarHead = obj;
+    }
+  });
+
+  // Selection border
+  const terrain = store.get('currentTerrain');
+  if (terrain?.originalBounds && terrain?.fetchBounds) {
+    createSelectionBorder(terrain.originalBounds, terrain.fetchBounds);
+  }
+
   // Camera starts in first person at eye level
   walkCamera.position.set(startX, terrainY + EYE_HEIGHT, startZ);
   thirdPerson = false;
   updateCameraLabel();
+  updateHeadVisibility();
 
   try {
     walkControls = new PointerLockControls(walkCamera, walkRenderer.domElement);
@@ -157,15 +180,94 @@ export function enterWalkMode(startPos = null) {
   return true;
 }
 
+function createSelectionBorder(originalBounds, fetchBounds) {
+  const latMid = (fetchBounds.minLat + fetchBounds.maxLat) / 2;
+  const xScale = 111320 * Math.cos((latMid * Math.PI) / 180);
+  const zScale = 111320;
+
+  const fetchW = (fetchBounds.maxLon - fetchBounds.minLon) * xScale;
+  const fetchH = (fetchBounds.maxLat - fetchBounds.minLat) * zScale;
+  const origW = (originalBounds.maxLon - originalBounds.minLon) * xScale;
+  const origH = (originalBounds.maxLat - originalBounds.minLat) * zScale;
+
+  const origCenterLon = (originalBounds.minLon + originalBounds.maxLon) / 2;
+  const origCenterLat = (originalBounds.minLat + originalBounds.maxLat) / 2;
+
+  const px = (origCenterLon - fetchBounds.minLon) * xScale - fetchW / 2;
+  const pz = (origCenterLat - fetchBounds.minLat) * zScale - fetchH / 2;
+
+  const halfW = origW / 2;
+  const halfH = origH / 2;
+  const x0 = px - halfW;
+  const x1 = px + halfW;
+  const z0 = pz - halfH;
+  const z1 = pz + halfH;
+
+  let yTop = 100;
+  if (terrainClone?.geometry) {
+    terrainClone.geometry.computeBoundingBox();
+    const box = terrainClone.geometry.boundingBox;
+    if (box) yTop = box.max.y + Math.max((box.max.y - box.min.y) * 0.3, 30);
+  }
+
+  const group = new THREE.Group();
+
+  // Translucent walls
+  const wallGeo = new THREE.BufferGeometry();
+  const yB = 0;
+  const yT = yTop;
+  const wallPositions = new Float32Array([
+    x0, yB, z0,  x1, yB, z0,  x1, yT, z0,  x0, yT, z0,
+    x1, yB, z0,  x1, yB, z1,  x1, yT, z1,  x1, yT, z0,
+    x1, yB, z1,  x0, yB, z1,  x0, yT, z1,  x1, yT, z1,
+    x0, yB, z1,  x0, yB, z0,  x0, yT, z0,  x0, yT, z1,
+  ]);
+  wallGeo.setAttribute('position', new THREE.BufferAttribute(wallPositions, 3));
+  wallGeo.setIndex([0,1,2, 0,2,3,  4,5,6, 4,6,7,  8,9,10, 8,10,11,  12,13,14, 12,14,15]);
+
+  const wallMat = new THREE.MeshBasicMaterial({
+    color: 0x3b82f6,
+    transparent: true,
+    opacity: 0.1,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  group.add(new THREE.Mesh(wallGeo, wallMat));
+
+  // Edge lines
+  const edgeGeo = new THREE.BufferGeometry();
+  const edgePositions = new Float32Array([
+    x0, yB, z0,  x1, yB, z0,  x1, yB, z0,  x1, yB, z1,
+    x1, yB, z1,  x0, yB, z1,  x0, yB, z1,  x0, yB, z0,
+    x0, yT, z0,  x1, yT, z0,  x1, yT, z0,  x1, yT, z1,
+    x1, yT, z1,  x0, yT, z1,  x0, yT, z1,  x0, yT, z0,
+    x0, yB, z0,  x0, yT, z0,  x1, yB, z0,  x1, yT, z0,
+    x1, yB, z1,  x1, yT, z1,  x0, yB, z1,  x0, yT, z1,
+  ]);
+  edgeGeo.setAttribute('position', new THREE.BufferAttribute(edgePositions, 3));
+  const edgeMat = new THREE.LineBasicMaterial({ color: 0x60a5fa });
+  group.add(new THREE.LineSegments(edgeGeo, edgeMat));
+
+  selectionBorder = group;
+  walkScene.add(selectionBorder);
+}
+
 export function toggleCameraMode() {
   thirdPerson = !thirdPerson;
   updateCameraLabel();
+  updateHeadVisibility();
 }
 
 function updateCameraLabel() {
   const label = document.getElementById('cameraToggleLabel');
   if (label) {
     label.textContent = thirdPerson ? '3rd Person' : '1st Person';
+  }
+}
+
+function updateHeadVisibility() {
+  if (avatarHead) {
+    avatarHead.visible = thirdPerson;
   }
 }
 
@@ -225,10 +327,9 @@ function updateMovement(delta) {
     avatar.position.z = newZ;
     avatar.position.y = terrainY;
 
-    // Face movement direction
+    // Face movement direction smoothly
     const targetRotation = Math.atan2(moveDir.x, moveDir.z);
-    let currentRotation = avatar.rotation.y;
-    let diff = targetRotation - currentRotation;
+    let diff = targetRotation - avatar.rotation.y;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
     avatar.rotation.y += diff * Math.min(1, delta * 10);
@@ -254,7 +355,6 @@ function updateWalkAnimation(delta) {
     leftArm.rotation.x = -swing * 0.7;
     rightArm.rotation.x = swing * 0.7;
   } else {
-    // Ease back to idle
     walkPhase = 0;
     leftLeg.rotation.x *= 0.8;
     rightLeg.rotation.x *= 0.8;
@@ -268,33 +368,36 @@ function updateWalkAnimation(delta) {
 function updateCameraPosition() {
   if (!walkCamera || !avatar) return;
 
-  const terrainY = getTerrainHeightAt(avatar.position.x, avatar.position.z);
+  const targetY = getTerrainHeightAt(avatar.position.x, avatar.position.z);
+  // Smooth Y to prevent jitter from raycast variations
+  smoothedY += (targetY - smoothedY) * SMOOTH_FACTOR;
 
   if (thirdPerson) {
-    // Camera behind and above avatar
-    const forward = new THREE.Vector3();
-    walkCamera.getWorldDirection(forward);
-    forward.y = 0;
-    forward.normalize();
+    // Use avatar's facing direction for camera placement (not camera's own direction)
+    const avatarForward = new THREE.Vector3(0, 0, 1);
+    avatarForward.applyEuler(avatar.rotation);
+    avatarForward.y = 0;
+    avatarForward.normalize();
 
-    const camX = avatar.position.x - forward.x * THIRD_PERSON_DISTANCE;
-    const camZ = avatar.position.z - forward.z * THIRD_PERSON_DISTANCE;
-    const camY = terrainY + EYE_HEIGHT + THIRD_PERSON_DISTANCE * 0.5;
+    const camX = avatar.position.x - avatarForward.x * THIRD_PERSON_DISTANCE;
+    const camZ = avatar.position.z - avatarForward.z * THIRD_PERSON_DISTANCE;
+    const camY = smoothedY + THIRD_PERSON_HEIGHT;
 
     walkCamera.position.set(camX, camY, camZ);
+    // Look at avatar from behind
+    walkCamera.lookAt(avatar.position.x, smoothedY + 1, avatar.position.z);
   } else {
     // First person: camera at avatar's eye level
     walkCamera.position.x = avatar.position.x;
     walkCamera.position.z = avatar.position.z;
-    walkCamera.position.y = terrainY + EYE_HEIGHT;
+    walkCamera.position.y = smoothedY + EYE_HEIGHT;
   }
 }
 
 function getTerrainHeightAt(x, z) {
   if (!terrainClone) return 0;
 
-  const raycaster = new THREE.Raycaster();
-  raycaster.set(new THREE.Vector3(x, 10000, z), new THREE.Vector3(0, -1, 0));
+  raycaster.set(new THREE.Vector3(x, 10000, z), downDir);
   const intersects = raycaster.intersectObject(terrainClone, false);
 
   if (intersects.length > 0) {
@@ -364,6 +467,15 @@ function cleanupWalkMode() {
     terrainClone = null;
   }
 
+  if (selectionBorder) {
+    walkScene?.remove(selectionBorder);
+    selectionBorder.traverse((obj) => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
+    });
+    selectionBorder = null;
+  }
+
   if (avatar) {
     walkScene?.remove(avatar);
     avatar.traverse((obj) => {
@@ -372,6 +484,8 @@ function cleanupWalkMode() {
     });
     avatar = null;
   }
+
+  avatarHead = null;
 
   if (walkRenderer) {
     walkRenderer.dispose();
