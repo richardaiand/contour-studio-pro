@@ -1,5 +1,4 @@
 import { analyzeMap } from '../services/ai/analyzer.js';
-import { analyzeMapLegend } from '../services/ai/legend-analyzer.js';
 import { AppError } from '../errors.js';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
@@ -30,24 +29,6 @@ export default async function (fastify) {
     }
 
     const buffer = Buffer.concat(chunks);
-
-    const isLegendAnalysis = req.query.legend === 'true' || data.fields?.legend?.value === 'true';
-
-    if (isLegendAnalysis) {
-      const legendResult = await analyzeMapLegend({
-        imageBuffer: buffer,
-        mimeType: data.mimetype,
-        userId: req.user.userId,
-      });
-
-      return {
-        filename: data.filename,
-        mimetype: data.mimetype,
-        size,
-        analysis: legendResult,
-        type: 'legend',
-      };
-    }
 
     const result = await analyzeMap({
       imageBuffer: buffer,

@@ -47,8 +47,15 @@ export async function analyzeMap({ imageBuffer, mimeType, userId, preset, endpoi
 {
   "title": "short map title or location if visible",
   "contourIntervalMeters": number | null,
+  "contourIntervalFeet": number | null,
   "scale": "scale text if visible, e.g. 1:24000",
+  "scaleRatio": "e.g. 1:24000",
   "coordinateSystem": "e.g. UTM Zone 33N, WGS84",
+  "datum": "e.g. NAD27, NAD83, WGS84",
+  "northArrow": "true north or magnetic north",
+  "publisher": "e.g. USGS",
+  "edition": "publication date or edition",
+  "legendSymbols": [{"symbol": "description", "meaning": "description"}],
   "contours": [
     {"elevationMeters": number, "color": "#hex"}
   ],
@@ -80,7 +87,7 @@ If information is not visible, use null.`,
       model: resolved.model,
       messages,
       temperature: 0.2,
-      max_tokens: 2048,
+      max_tokens: 4096,
     }),
     signal: AbortSignal.timeout(90000),
   });

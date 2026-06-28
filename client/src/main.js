@@ -232,14 +232,6 @@ async function init() {
 
   $('exitWalkMode')?.addEventListener('click', () => exitWalkMode());
 
-  // ===== Legend Analysis =====
-  $('legendAnalysisCheck')?.addEventListener('change', (e) => {
-    const btn = $('analyzeBtn');
-    if (btn) {
-      btn.textContent = e.target.checked ? 'Analyze Legend' : 'Analyze Map';
-    }
-  });
-
   // Manual save buttons
   async function manualSave() {
     const project = store.get('currentProject');

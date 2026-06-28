@@ -370,14 +370,12 @@ async function analyzeMapUpload(e) {
     return;
   }
 
-  const legendMode = $('legendAnalysisCheck')?.checked;
   setStatus(`Analyzing ${file.name}…`, '');
   try {
     const formData = new FormData();
     formData.append('file', file);
 
-    const url = legendMode ? '/api/maps/analyze?legend=true' : '/api/maps/analyze';
-    const res = await fetch(url, {
+    const res = await fetch('/api/maps/analyze', {
       method: 'POST',
       credentials: 'same-origin',
       body: formData,
@@ -391,56 +389,42 @@ async function analyzeMapUpload(e) {
     const data = await res.json();
     store.set({ currentMapAnalysis: data.analysis });
 
+    const a = data.analysis;
     const resultEl = $('mapAnalysisResult');
-    if (legendMode && data.type === 'legend') {
-      renderLegendAnalysis(data.analysis, resultEl);
-      setStatus(`Legend analyzed: ${data.analysis?.title || file.name}`, 'ok');
-    } else {
-      const interval = data.analysis?.contourIntervalMeters
-        ? `${data.analysis.contourIntervalMeters}m contour interval`
-        : 'no contour interval detected';
-      setStatus(`Map analyzed: ${data.analysis?.title || file.name} · ${interval}`, 'ok');
-      if (resultEl) {
-        resultEl.innerHTML = `
-          <div class="analysis-summary">
-            ${data.analysis?.title ? `<div><b>${data.analysis.title}</b></div>` : ''}
-            ${data.analysis?.scale ? `<div>Scale: ${data.analysis.scale}</div>` : ''}
-            ${data.analysis?.coordinateSystem ? `<div>CRS: ${data.analysis.coordinateSystem}</div>` : ''}
-            ${data.analysis?.features ? `<div>${data.analysis.features.length} features detected</div>` : ''}
-          </div>
-        `;
-      }
+    if (resultEl) {
+      const symbols = a.legendSymbols || [];
+      resultEl.innerHTML = `
+        <div class="legend-analysis">
+          ${a.title ? `<div class="legend-title">${a.title}</div>` : ''}
+          ${a.scaleRatio || a.scale ? `<div><b>Scale:</b> ${a.scaleRatio || a.scale}</div>` : ''}
+          ${a.contourIntervalMeters ? `<div><b>Contour interval:</b> ${a.contourIntervalMeters}m${a.contourIntervalFeet ? ` (${a.contourIntervalFeet}ft)` : ''}</div>` : ''}
+          ${a.datum ? `<div><b>Datum:</b> ${a.datum}</div>` : ''}
+          ${a.coordinateSystem ? `<div><b>Coordinate system:</b> ${a.coordinateSystem}</div>` : ''}
+          ${a.publisher ? `<div><b>Publisher:</b> ${a.publisher}</div>` : ''}
+          ${a.edition ? `<div><b>Edition:</b> ${a.edition}</div>` : ''}
+          ${a.features?.length ? `<div><b>Features:</b> ${a.features.length} detected</div>` : ''}
+          ${symbols.length > 0 ? `
+            <details class="env-details">
+              <summary>Legend symbols (${symbols.length})</summary>
+              <ul class="symbol-list">
+                ${symbols.map((s) => `<li><b>${s.symbol || '?'}</b> — ${s.meaning || ''}</li>`).join('')}
+              </ul>
+            </details>
+          ` : ''}
+          ${a.notes ? `<div class="hint">${a.notes}</div>` : ''}
+        </div>
+      `;
     }
+
+    const interval = a.contourIntervalMeters
+      ? `${a.contourIntervalMeters}m contour interval`
+      : 'no contour interval detected';
+    setStatus(`Map analyzed: ${a.title || file.name} · ${interval}`, 'ok');
   } catch (e) {
     setStatus('Map analysis failed: ' + e.message, 'error');
   } finally {
     e.target.value = '';
   }
-}
-
-function renderLegendAnalysis(analysis, el) {
-  if (!el) return;
-  const symbols = analysis.legendSymbols || [];
-  el.innerHTML = `
-    <div class="legend-analysis">
-      ${analysis.title ? `<div class="legend-title">${analysis.title}</div>` : ''}
-      ${analysis.scaleRatio ? `<div><b>Scale:</b> ${analysis.scaleRatio}</div>` : ''}
-      ${analysis.contourIntervalMeters ? `<div><b>Contour interval:</b> ${analysis.contourIntervalMeters}m (${analysis.contourIntervalFeet || '?'}ft)</div>` : ''}
-      ${analysis.datum ? `<div><b>Datum:</b> ${analysis.datum}</div>` : ''}
-      ${analysis.coordinateSystem ? `<div><b>Coordinate system:</b> ${analysis.coordinateSystem}</div>` : ''}
-      ${analysis.publisher ? `<div><b>Publisher:</b> ${analysis.publisher}</div>` : ''}
-      ${analysis.edition ? `<div><b>Edition:</b> ${analysis.edition}</div>` : ''}
-      ${symbols.length > 0 ? `
-        <details class="env-details">
-          <summary>Legend symbols (${symbols.length})</summary>
-          <ul class="symbol-list">
-            ${symbols.map((s) => `<li><b>${s.symbol || '?'}</b> — ${s.meaning || ''}</li>`).join('')}
-          </ul>
-        </details>
-      ` : ''}
-      ${analysis.notes ? `<div class="hint">${analysis.notes}</div>` : ''}
-    </div>
-  `;
 }
 
 function updateStats(data) {
