@@ -17,6 +17,8 @@ let isMoving = false;
 let walkPhase = 0;
 let thirdPerson = false;
 let smoothedY = 0;
+let cameraYaw = 0;
+let frameCount = 0;
 const moveState = { forward: false, backward: false, left: false, right: false };
 const MOVE_SPEED = 8;
 const EYE_HEIGHT = 1.65;
@@ -30,8 +32,15 @@ let onKeyUpRef = null;
 let listenersRegistered = false;
 let originalCamera = null;
 let originalControls = null;
+
+// Reused objects (no per-frame allocation)
 const raycaster = new THREE.Raycaster();
 const downDir = new THREE.Vector3(0, -1, 0);
+const raycastOrigin = new THREE.Vector3();
+const moveDir = new THREE.Vector3();
+const rightVec = new THREE.Vector3();
+const forwardVec = new THREE.Vector3();
+const avatarForward = new THREE.Vector3();
 
 export function initWalkMode(scene, camera, renderer, terrainMesh, orbitControls) {
   terrainMeshRef = terrainMesh;
@@ -53,30 +62,31 @@ export function enterWalkMode(startPos = null) {
 
   walkScene = new THREE.Scene();
   walkScene.background = new THREE.Color(0x87ceeb);
-  walkScene.fog = new THREE.Fog(0x87ceeb, 500, 2000);
+  walkScene.fog = new THREE.Fog(0x87ceeb, 300, 1500);
 
   if (terrainMeshRef.geometry) {
     const geo = terrainMeshRef.geometry.clone();
     const mat = new THREE.MeshStandardMaterial({
       vertexColors: true,
-      roughness: 0.8,
-      metalness: 0.05,
-      side: THREE.DoubleSide,
+      roughness: 0.9,
+      metalness: 0.0,
+      side: THREE.FrontSide,
+      flatShading: false,
     });
     terrainClone = new THREE.Mesh(geo, mat);
     walkScene.add(terrainClone);
   }
 
-  const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+  const ambient = new THREE.AmbientLight(0xffffff, 0.7);
   walkScene.add(ambient);
-  const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.8);
   dir.position.set(200, 300, 100);
   walkScene.add(dir);
 
-  walkCamera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 5000);
+  walkCamera = new THREE.PerspectiveCamera(70, canvas.clientWidth / canvas.clientHeight, 0.1, 2000);
 
-  walkRenderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  walkRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  walkRenderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+  walkRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   walkRenderer.setSize(canvas.clientWidth, canvas.clientHeight);
 
   // Position at terrain center
@@ -99,7 +109,6 @@ export function enterWalkMode(startPos = null) {
   avatar.position.set(startX, terrainY, startZ);
   walkScene.add(avatar);
 
-  // Find head to hide in first person
   avatarHead = avatar.userData.head || null;
 
   // Selection border
@@ -108,8 +117,8 @@ export function enterWalkMode(startPos = null) {
     createSelectionBorder(terrain.originalBounds, terrain.fetchBounds);
   }
 
-  // Camera starts in first person at eye level
   walkCamera.position.set(startX, terrainY + EYE_HEIGHT, startZ);
+  cameraYaw = 0;
   thirdPerson = false;
   updateCameraLabel();
   updateHeadVisibility();
@@ -126,9 +135,7 @@ export function enterWalkMode(startPos = null) {
     isWalking = true;
   });
 
-  walkControls.addEventListener('unlock', () => {
-    // User can click to re-lock
-  });
+  walkControls.addEventListener('unlock', () => {});
 
   if (!listenersRegistered) {
     onKeyDownRef = (e) => {
@@ -169,6 +176,7 @@ export function enterWalkMode(startPos = null) {
   }
 
   lastTime = performance.now();
+  frameCount = 0;
   walkAnimId = requestAnimationFrame(walkLoop);
 
   window.addEventListener('resize', onWalkResize);
@@ -208,7 +216,6 @@ function createSelectionBorder(originalBounds, fetchBounds) {
 
   const group = new THREE.Group();
 
-  // Translucent walls
   const wallGeo = new THREE.BufferGeometry();
   const yB = 0;
   const yT = yTop;
@@ -230,7 +237,6 @@ function createSelectionBorder(originalBounds, fetchBounds) {
   });
   group.add(new THREE.Mesh(wallGeo, wallMat));
 
-  // Edge lines
   const edgeGeo = new THREE.BufferGeometry();
   const edgePositions = new Float32Array([
     x0, yB, z0,  x1, yB, z0,  x1, yB, z0,  x1, yB, z1,
@@ -283,10 +289,11 @@ function walkLoop(time) {
 
   const delta = Math.min((time - lastTime) / 1000, 0.1);
   lastTime = time;
+  frameCount++;
 
   updateMovement(delta);
   updateWalkAnimation(delta);
-  updateCameraPosition();
+  updateCameraPosition(delta);
 
   walkRenderer.render(walkScene, walkCamera);
   walkAnimId = requestAnimationFrame(walkLoop);
@@ -295,19 +302,17 @@ function walkLoop(time) {
 function updateMovement(delta) {
   if (!walkControls || !walkControls.isLocked) return;
 
-  const moveDir = new THREE.Vector3();
-  const right = new THREE.Vector3();
-  const forward = new THREE.Vector3();
+  // Get camera direction for movement (always based on where you're looking)
+  walkCamera.getWorldDirection(forwardVec);
+  forwardVec.y = 0;
+  forwardVec.normalize();
+  rightVec.crossVectors(forwardVec, walkCamera.up).normalize();
 
-  walkCamera.getWorldDirection(forward);
-  forward.y = 0;
-  forward.normalize();
-  right.crossVectors(forward, walkCamera.up).normalize();
-
-  if (moveState.forward) moveDir.add(forward);
-  if (moveState.backward) moveDir.sub(forward);
-  if (moveState.right) moveDir.add(right);
-  if (moveState.left) moveDir.sub(right);
+  moveDir.set(0, 0, 0);
+  if (moveState.forward) moveDir.add(forwardVec);
+  if (moveState.backward) moveDir.sub(forwardVec);
+  if (moveState.right) moveDir.add(rightVec);
+  if (moveState.left) moveDir.sub(rightVec);
 
   isMoving = moveDir.lengthSq() > 0;
 
@@ -318,7 +323,15 @@ function updateMovement(delta) {
     const newX = avatar.position.x + moveDir.x * distance;
     const newZ = avatar.position.z + moveDir.z * distance;
 
-    const terrainY = getTerrainHeightAt(newX, newZ);
+    // Only raycast terrain height when actually moving (every 2nd frame to save GPU)
+    let terrainY;
+    if (frameCount % 2 === 0) {
+      terrainY = getTerrainHeightAt(newX, newZ);
+      lastTerrainY = terrainY;
+    } else {
+      terrainY = lastTerrainY;
+    }
+
     avatar.position.x = newX;
     avatar.position.z = newZ;
     avatar.position.y = terrainY;
@@ -331,6 +344,8 @@ function updateMovement(delta) {
     avatar.rotation.y += diff * Math.min(1, delta * 10);
   }
 }
+
+let lastTerrainY = 0;
 
 function updateWalkAnimation(delta) {
   if (!avatar) return;
@@ -348,17 +363,13 @@ function updateWalkAnimation(delta) {
     walkPhase += delta * 8;
 
     const swing = Math.sin(walkPhase) * 0.4;
-    // Legs swing from hip
     leftLeg.rotation.x = swing;
     rightLeg.rotation.x = -swing;
-    // Shoulders swing opposite to legs
     leftArm.rotation.x = -swing * 0.6;
     rightArm.rotation.x = swing * 0.6;
-    // Elbows bend slightly during walk
     if (leftElbow) leftElbow.rotation.x = Math.max(0, -swing * 0.3) + 0.15;
     if (rightElbow) rightElbow.rotation.x = Math.max(0, swing * 0.3) + 0.15;
   } else {
-    // Ease back to idle
     walkPhase = 0;
     leftLeg.rotation.x *= 0.8;
     rightLeg.rotation.x *= 0.8;
@@ -369,16 +380,23 @@ function updateWalkAnimation(delta) {
   }
 }
 
-function updateCameraPosition() {
+function updateCameraPosition(delta) {
   if (!walkCamera || !avatar) return;
 
-  const targetY = getTerrainHeightAt(avatar.position.x, avatar.position.z);
-  // Smooth Y to prevent jitter from raycast variations
+  // Only raycast terrain height every 3rd frame for camera Y
+  let targetY;
+  if (frameCount % 3 === 0) {
+    targetY = getTerrainHeightAt(avatar.position.x, avatar.position.z);
+    lastCamTerrainY = targetY;
+  } else {
+    targetY = lastCamTerrainY;
+  }
+
   smoothedY += (targetY - smoothedY) * SMOOTH_FACTOR;
 
   if (thirdPerson) {
-    // Use avatar's facing direction for camera placement (not camera's own direction)
-    const avatarForward = new THREE.Vector3(0, 0, 1);
+    // Use avatar's facing direction (not camera direction) for 3rd person
+    avatarForward.set(0, 0, 1);
     avatarForward.applyEuler(avatar.rotation);
     avatarForward.y = 0;
     avatarForward.normalize();
@@ -388,26 +406,31 @@ function updateCameraPosition() {
     const camY = smoothedY + THIRD_PERSON_HEIGHT;
 
     walkCamera.position.set(camX, camY, camZ);
-    // Look at avatar from behind
-    walkCamera.lookAt(avatar.position.x, smoothedY + 1, avatar.position.z);
+    // Look at avatar's upper body
+    walkCamera.lookAt(avatar.position.x, smoothedY + 1.2, avatar.position.z);
   } else {
-    // First person: camera at avatar's eye level
+    // First person: camera at eye level, PointerLockControls handles rotation
     walkCamera.position.x = avatar.position.x;
     walkCamera.position.z = avatar.position.z;
     walkCamera.position.y = smoothedY + EYE_HEIGHT;
   }
 }
 
+let lastCamTerrainY = 0;
+
 function getTerrainHeightAt(x, z) {
   if (!terrainClone) return 0;
 
-  raycaster.set(new THREE.Vector3(x, 10000, z), downDir);
+  // Reuse origin vector
+  raycastOrigin.set(x, 10000, z);
+  raycaster.set(raycastOrigin, downDir);
   const intersects = raycaster.intersectObject(terrainClone, false);
 
   if (intersects.length > 0) {
     return intersects[0].point.y;
   }
 
+  // Fallback: nearest vertex (only if raycast missed)
   if (terrainClone.geometry?.attributes?.position) {
     const pos = terrainClone.geometry.attributes.position;
     let closestIdx = 0;
