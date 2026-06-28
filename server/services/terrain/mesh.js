@@ -1,5 +1,7 @@
+import { smoothGrid } from '../dem/grid.js';
+
 export function gridToMesh(grid, bounds, options = {}) {
-  const { verticalExaggeration = 1.5, baseHeight = 0, baseOffset = 10 } = options;
+  const { verticalExaggeration = 1.5, baseHeight = 0, baseOffset = 10, smooth = true } = options;
   const height = grid.length;
   const width = grid[0]?.length || 0;
 
@@ -15,6 +17,20 @@ export function gridToMesh(grid, bounds, options = {}) {
       if (v > maxElevation) maxElevation = v;
     }
   }
+
+  // Smooth the grid to remove blocky grid-cell artifacts
+  if (smooth) {
+    grid = smoothGrid(grid, 2, 0.4);
+    minElevation = Infinity;
+    maxElevation = -Infinity;
+    for (const row of grid) {
+      for (const v of row) {
+        if (v < minElevation) minElevation = v;
+        if (v > maxElevation) maxElevation = v;
+      }
+    }
+  }
+
   const elevationRange = Math.max(0.001, maxElevation - minElevation);
 
   const positions = [];
