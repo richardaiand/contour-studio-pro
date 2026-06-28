@@ -8,6 +8,7 @@ import { cleanupMesh } from '../terrain/cleanup.js';
 import { createProjectFromJob, updateProjectFromJob } from '../projects/db.js';
 import { fetchTnmDem, fetchTopoMapUrl } from '../topo/tnm.js';
 import { mergeGrids } from '../topo/merger.js';
+import { enhanceWithTopoMap } from '../topo/hybrid.js';
 
 const PROCESSORS = {
   'terrain:generate': processTerrainJob,
@@ -105,11 +106,29 @@ async function processTerrainJob(job, setProgress) {
       console.warn(`TNM enhancement failed (non-fatal): ${err.message}`);
     }
 
-    // Fetch US Topo map sheet info for reference
+    // AI-powered hybrid: download the US Topo map for the area and run AI
+    // vision analysis to extract contour lines, then blend those elevations
+    // into the DEM grid for higher fidelity. Requires an AI API key.
     try {
-      topoMapInfo = await fetchTopoMapUrl(bounds);
-    } catch {
-      // non-fatal
+      setProgress(40);
+      const meshBounds = dem.fetchBounds || bounds;
+      const hybridResult = await enhanceWithTopoMap(bounds, dem.grid, meshBounds, job.userId);
+      if (hybridResult) {
+        if (hybridResult.grid) {
+          dem.grid = hybridResult.grid;
+        }
+        topoMapInfo = hybridResult.topoMap;
+        dem.sources = [...new Set([...(dem.sources || []), 'ai-topo-hybrid'])];
+        console.log('AI topo map hybrid: enhanced grid with contour data');
+      } else if (hybridResult?.topoMap) {
+        topoMapInfo = hybridResult.topoMap;
+      }
+    } catch (err) {
+      console.warn(`AI topo map hybrid failed (non-fatal): ${err.message}`);
+      // Still try to get the topo map URL for reference
+      try {
+        topoMapInfo = await fetchTopoMapUrl(bounds);
+      } catch {}
     }
   }
 
