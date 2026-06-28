@@ -94,6 +94,20 @@ export function updateProjectFromJob(projectId, job, dem, mesh) {
   return { id: projectId, title: row?.title || 'Terrain' };
 }
 
+export function updateProjectTerrain(projectId, dem, mesh) {
+  const db = getDb();
+  const terrainData = buildTerrainData(dem, mesh, {});
+  terrainData.versionLabel = 'Enhanced';
+
+  db.prepare(
+    `UPDATE projects SET terrain_data_json = ?, updated_at = ? WHERE id = ?`
+  ).run(
+    JSON.stringify(terrainData),
+    now(),
+    projectId
+  );
+}
+
 function buildTerrainData(dem, mesh, payload) {
   return {
     mesh: {

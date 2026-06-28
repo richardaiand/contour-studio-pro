@@ -269,38 +269,40 @@ async function generateTerrain() {
     }
 
     setLoading(true, 'Generating terrain…');
-    const data = await pollJob(jobId);
+    const data = await pollJob(jobId, async (phase1Data) => {
+      // Phase 1: show initial terrain immediately
+      store.set({ currentTerrain: phase1Data });
+      store.set({ currentProject: { ...store.get('currentProject'), id: phase1Data.projectId, title: phase1Data.projectTitle, isNew: false } });
+      const rotation = store.get('rotation') || 0;
+      navigate('studio');
+      await new Promise(resolve => setTimeout(resolve, 100));
+      setTerrain(phase1Data.mesh, rotation);
+      if (phase1Data.wasExpanded && phase1Data.originalBounds && phase1Data.fetchBounds) {
+        drawSelectionOutline(phase1Data.originalBounds, phase1Data.fetchBounds);
+        const disclaimer = document.getElementById('expandedDisclaimer');
+        if (disclaimer) disclaimer.classList.remove('hidden');
+      } else {
+        const disclaimer = document.getElementById('expandedDisclaimer');
+        if (disclaimer) disclaimer.classList.add('hidden');
+      }
+      updateStats(phase1Data);
+    });
 
+    // Phase 2: swap with enhanced terrain
     store.set({ currentTerrain: data });
     store.set({ currentProject: { ...store.get('currentProject'), id: data.projectId, title: data.projectTitle, isNew: false } });
     const rotation = store.get('rotation') || 0;
-    navigate('studio');
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        setTerrain(data.mesh, rotation);
-        if (data.wasExpanded && data.originalBounds && data.fetchBounds) {
-          drawSelectionOutline(data.originalBounds, data.fetchBounds);
-          const disclaimer = document.getElementById('expandedDisclaimer');
-          if (disclaimer) disclaimer.classList.remove('hidden');
-        } else {
-          const disclaimer = document.getElementById('expandedDisclaimer');
-          if (disclaimer) disclaimer.classList.add('hidden');
-        }
-        updateStats(data);
-        setTimeout(async () => {
-          const thumb = captureStudioThumbnail();
-          if (thumb && data.projectId) {
-            try {
-              await api(`/projects/${data.projectId}`, {
-                method: 'PATCH',
-                body: JSON.stringify({ thumbnail: thumb }),
-              });
-              loadProjects();
-            } catch {}
-          }
-        }, 500);
-      }, 100);
-    });
+    // Swap terrain with enhanced version
+    setTerrain(data.mesh, rotation);
+    if (data.wasExpanded && data.originalBounds && data.fetchBounds) {
+      drawSelectionOutline(data.originalBounds, data.fetchBounds);
+      const disclaimer = document.getElementById('expandedDisclaimer');
+      if (disclaimer) disclaimer.classList.remove('hidden');
+    } else {
+      const disclaimer = document.getElementById('expandedDisclaimer');
+      if (disclaimer) disclaimer.classList.add('hidden');
+    }
+    updateStats(data);
     setLoading(false);
     const sizeLabel = formatSizeLabel();
     let statusMsg = `${data.sourceDescription || 'Terrain'} · ${sizeLabel} · ${data.resolutionMeters}m resolution`;
@@ -350,22 +352,38 @@ function setLoading(visible, text) {
   }
 }
 
-async function pollJob(jobId) {
+async function pollJob(jobId, onPhase1) {
   const start = Date.now();
   const maxWait = 5 * 60 * 1000;
+  let phase1Done = false;
 
   while (Date.now() - start < maxWait) {
     const job = await api(`/jobs/${jobId}`);
 
-    if (job.status === 'completed') {
-      return job.result;
-    }
     if (job.status === 'failed') {
       throw new Error(job.error || 'Job failed');
     }
 
+    if (job.status === 'completed' && job.result) {
+      if (job.result.phase === 1 && !phase1Done) {
+        // Phase 1 complete — show initial terrain immediately
+        phase1Done = true;
+        if (onPhase1) await onPhase1(job.result);
+        // Keep polling for phase 2
+        setLoading(true, 'Enhancing terrain…');
+        await sleep(1500);
+        continue;
+      }
+      // Phase 2 complete (or no phases) — return final result
+      return job.result;
+    }
+
     if (job.progress > 0) {
-      setLoading(true, 'Generating terrain…');
+      if (job.progress < 50) {
+        setLoading(true, 'Generating terrain…');
+      } else {
+        setLoading(true, 'Enhancing terrain…');
+      }
     }
     await sleep(1500);
   }

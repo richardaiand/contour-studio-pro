@@ -5,7 +5,7 @@ import { claimPendingJob, updateJob } from './db.js';
 import { fetchDemForBounds, selectSourceDescription } from '../dem/router.js';
 import { gridToMesh } from '../terrain/mesh.js';
 import { cleanupMesh } from '../terrain/cleanup.js';
-import { createProjectFromJob, updateProjectFromJob } from '../projects/db.js';
+import { createProjectFromJob, updateProjectFromJob, updateProjectTerrain } from '../projects/db.js';
 import { fetchTnmDem, fetchTopoMapUrl } from '../topo/tnm.js';
 import { mergeGrids } from '../topo/merger.js';
 import { enhanceWithTopoMap } from '../topo/hybrid.js';
@@ -82,82 +82,35 @@ async function runJob(job) {
 async function processTerrainJob(job, setProgress) {
   const { bounds, detailLevel = 'standard', verticalExaggeration = 1.5 } = job.payload;
 
+  // ===== PHASE 1: Basic DEM + mesh (fast, show to user immediately) =====
   setProgress(10);
   const dem = await fetchDemForBounds(bounds, detailLevel);
 
-  setProgress(30);
-  // Hybrid enhancement: try to fetch higher-resolution DEM from USGS TNM (US only)
-  let topoMapInfo = null;
-  if (bounds.minLat >= 24 && bounds.maxLat <= 50 && bounds.minLon >= -125 && bounds.maxLon <= -66) {
-    try {
-      const meshBounds = dem.fetchBounds || bounds;
-      const targetSize = dem.grid.length;
-      const tnmData = await fetchTnmDem(meshBounds, targetSize);
-      if (tnmData && tnmData.grid && tnmData.grid.length > 0) {
-        dem.grid = mergeGrids(dem.grid, tnmData.grid);
-        if (tnmData.resolutionMeters < dem.resolutionMeters) {
-          dem.resolutionMeters = tnmData.resolutionMeters;
-        }
-        dem.sources = [...new Set([...(dem.sources || []), 'usgs-tnm'])];
-        dem.attribution += '; ' + tnmData.attribution;
-        console.log(`TNM enhancement: merged ${tnmData.width}x${tnmData.height} grid at ${tnmData.resolutionMeters}m resolution`);
-      }
-    } catch (err) {
-      console.warn(`TNM enhancement failed (non-fatal): ${err.message}`);
-    }
-
-    // AI-powered hybrid: download the US Topo map for the area and run AI
-    // vision analysis to extract contour lines, then blend those elevations
-    // into the DEM grid for higher fidelity. Requires an AI API key.
-    try {
-      setProgress(40);
-      const meshBounds = dem.fetchBounds || bounds;
-      const hybridResult = await enhanceWithTopoMap(bounds, dem.grid, meshBounds, job.userId);
-      if (hybridResult) {
-        if (hybridResult.grid) {
-          dem.grid = hybridResult.grid;
-        }
-        topoMapInfo = hybridResult.topoMap;
-        dem.sources = [...new Set([...(dem.sources || []), 'ai-topo-hybrid'])];
-        console.log('AI topo map hybrid: enhanced grid with contour data');
-      } else if (hybridResult?.topoMap) {
-        topoMapInfo = hybridResult.topoMap;
-      }
-    } catch (err) {
-      console.warn(`AI topo map hybrid failed (non-fatal): ${err.message}`);
-      // Still try to get the topo map URL for reference
-      try {
-        topoMapInfo = await fetchTopoMapUrl(bounds);
-      } catch {}
-    }
-  }
-
-  setProgress(60);
+  setProgress(25);
   if (!dem.grid || dem.grid.length === 0) {
     throw new Error('DEM grid was empty');
   }
 
-  // Use the fetch bounds (which may be expanded) for mesh generation
-  // so the terrain covers the full data area
   const meshBounds = dem.fetchBounds || bounds;
   const mesh = gridToMesh(dem.grid, meshBounds, { verticalExaggeration });
 
-  // V2.4: Clean up mesh geometry (remove degenerate triangles, weld duplicates)
   const cleaned = cleanupMesh(mesh.positions, mesh.normals, mesh.indices, mesh.uvs, mesh.colors);
   mesh.positions = cleaned.positions;
   mesh.normals = cleaned.normals;
   mesh.indices = cleaned.indices;
   mesh.uvs = cleaned.uvs;
   mesh.colors = cleaned.colors;
-  console.log(`Mesh cleanup: removed ${cleaned.removedDegenerate} degenerate triangles, merged ${cleaned.mergedVertices} duplicate vertices`);
 
-  setProgress(95);
+  // Save initial version to project
+  setProgress(45);
   const project = job.payload.projectId
     ? updateProjectFromJob(job.payload.projectId, job, dem, mesh)
     : createProjectFromJob(job, dem, mesh);
+
+  // Send phase 1 result so client can show terrain immediately
   await updateJob(job.id, {
     status: 'completed',
-    progress: 100,
+    progress: 50,
     result: {
       projectId: project.id,
       projectTitle: project.title,
@@ -173,7 +126,7 @@ async function processTerrainJob(job, setProgress) {
       expansionNote: dem.expansionNote || null,
       originalBounds: dem.originalBounds || bounds,
       fetchBounds: dem.fetchBounds || bounds,
-      topoMap: topoMapInfo,
+      phase: 1,
       mesh: {
         width: mesh.width,
         height: mesh.height,
@@ -188,4 +141,137 @@ async function processTerrainJob(job, setProgress) {
       },
     },
   });
+
+  // ===== PHASE 2: Enhancement (TNM + AI hybrid, run in background) =====
+  let topoMapInfo = null;
+  let enhanced = false;
+
+  if (bounds.minLat >= 24 && bounds.maxLat <= 50 && bounds.minLon >= -125 && bounds.maxLon <= -66) {
+    // TNM DEM enhancement
+    try {
+      setProgress(60);
+      const targetSize = dem.grid.length;
+      const tnmData = await fetchTnmDem(meshBounds, targetSize);
+      if (tnmData && tnmData.grid && tnmData.grid.length > 0) {
+        dem.grid = mergeGrids(dem.grid, tnmData.grid);
+        if (tnmData.resolutionMeters < dem.resolutionMeters) {
+          dem.resolutionMeters = tnmData.resolutionMeters;
+        }
+        dem.sources = [...new Set([...(dem.sources || []), 'usgs-tnm'])];
+        dem.attribution += '; ' + tnmData.attribution;
+        enhanced = true;
+        console.log(`TNM enhancement: merged ${tnmData.width}x${tnmData.height} grid at ${tnmData.resolutionMeters}m resolution`);
+      }
+    } catch (err) {
+      console.warn(`TNM enhancement failed (non-fatal): ${err.message}`);
+    }
+
+    // AI topo map hybrid
+    try {
+      setProgress(75);
+      const hybridResult = await enhanceWithTopoMap(bounds, dem.grid, meshBounds, job.userId);
+      if (hybridResult) {
+        if (hybridResult.grid) {
+          dem.grid = hybridResult.grid;
+          enhanced = true;
+        }
+        topoMapInfo = hybridResult.topoMap;
+        dem.sources = [...new Set([...(dem.sources || []), 'ai-topo-hybrid'])];
+        console.log('AI topo map hybrid: enhanced grid with contour data');
+      } else if (hybridResult?.topoMap) {
+        topoMapInfo = hybridResult.topoMap;
+      }
+    } catch (err) {
+      console.warn(`AI topo map hybrid failed (non-fatal): ${err.message}`);
+      try {
+        topoMapInfo = await fetchTopoMapUrl(bounds);
+      } catch {}
+    }
+  }
+
+  // If enhancement happened, rebuild mesh and update project
+  if (enhanced) {
+    setProgress(90);
+    const enhancedMesh = gridToMesh(dem.grid, meshBounds, { verticalExaggeration });
+    const enhancedCleaned = cleanupMesh(enhancedMesh.positions, enhancedMesh.normals, enhancedMesh.indices, enhancedMesh.uvs, enhancedMesh.colors);
+    enhancedMesh.positions = enhancedCleaned.positions;
+    enhancedMesh.normals = enhancedCleaned.normals;
+    enhancedMesh.indices = enhancedCleaned.indices;
+    enhancedMesh.uvs = enhancedCleaned.uvs;
+    enhancedMesh.colors = enhancedCleaned.colors;
+
+    // Update project with enhanced version
+    updateProjectTerrain
+
+    // Update job with phase 2 result
+    await updateJob(job.id, {
+      status: 'completed',
+      progress: 100,
+      result: {
+        projectId: project.id,
+        projectTitle: project.title,
+        detailLevel,
+        resolutionMeters: dem.resolutionMeters,
+        minElevation: enhancedMesh.minElevation,
+        maxElevation: enhancedMesh.maxElevation,
+        verticalExaggeration,
+        sources: dem.sources,
+        sourceDescription: selectSourceDescription(dem.sources, detailLevel),
+        attribution: dem.attribution,
+        wasExpanded: dem.wasExpanded || false,
+        expansionNote: dem.expansionNote || null,
+        originalBounds: dem.originalBounds || bounds,
+        fetchBounds: dem.fetchBounds || bounds,
+        topoMap: topoMapInfo,
+        phase: 2,
+        mesh: {
+          width: enhancedMesh.width,
+          height: enhancedMesh.height,
+          grid: enhancedMesh.grid,
+          positions: enhancedMesh.positions,
+          normals: enhancedMesh.normals,
+          uvs: enhancedMesh.uvs,
+          colors: enhancedMesh.colors,
+          indices: enhancedMesh.indices,
+          minElevation: enhancedMesh.minElevation,
+          maxElevation: enhancedMesh.maxElevation,
+        },
+      },
+    });
+  } else {
+    // No enhancement — just update progress to 100
+    await updateJob(job.id, {
+      progress: 100,
+      result: {
+        projectId: project.id,
+        projectTitle: project.title,
+        detailLevel,
+        resolutionMeters: dem.resolutionMeters,
+        minElevation: mesh.minElevation,
+        maxElevation: mesh.maxElevation,
+        verticalExaggeration,
+        sources: dem.sources,
+        sourceDescription: selectSourceDescription(dem.sources, detailLevel),
+        attribution: dem.attribution,
+        wasExpanded: dem.wasExpanded || false,
+        expansionNote: dem.expansionNote || null,
+        originalBounds: dem.originalBounds || bounds,
+        fetchBounds: dem.fetchBounds || bounds,
+        topoMap: topoMapInfo,
+        phase: 2,
+        mesh: {
+          width: mesh.width,
+          height: mesh.height,
+          grid: mesh.grid,
+          positions: mesh.positions,
+          normals: mesh.normals,
+          uvs: mesh.uvs,
+          colors: mesh.colors,
+          indices: mesh.indices,
+          minElevation: mesh.minElevation,
+          maxElevation: mesh.maxElevation,
+        },
+      },
+    });
+  }
 }
