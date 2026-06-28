@@ -2,7 +2,7 @@ import { analyzeMap } from '../services/ai/analyzer.js';
 import { AppError } from '../errors.js';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
-const MAX_SIZE = 10 * 1024 * 1024;
+const MAX_SIZE = 50 * 1024 * 1024;
 
 export default async function (fastify) {
   fastify.post('/analyze', {

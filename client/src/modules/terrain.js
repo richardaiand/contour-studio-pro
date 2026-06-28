@@ -373,7 +373,7 @@ async function analyzeMapUpload(e) {
     return;
   }
 
-  const MAX_SIZE = 10 * 1024 * 1024;
+  const MAX_SIZE = 50 * 1024 * 1024;
   if (file.size > MAX_SIZE) {
     setStatus('File too large. Maximum is 10MB.', 'error');
     e.target.value = '';
