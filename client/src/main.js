@@ -224,13 +224,25 @@ async function init() {
     const renderer = getRenderer();
     const controls = getControls();
 
-    if (!scene || !camera || !renderer) return;
+    if (!scene || !camera || !renderer) {
+      setStatus('3D viewport not ready. Try again.', 'error');
+      return;
+    }
 
     initWalkMode(scene, camera, renderer, mesh, controls);
+
+    const canvas = renderer.domElement;
+    canvas.style.cursor = 'none';
+
     enterWalkMode();
   });
 
-  $('exitWalkMode')?.addEventListener('click', () => exitWalkMode());
+  $('exitWalkMode')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const renderer = getRenderer();
+    if (renderer?.domElement) renderer.domElement.style.cursor = '';
+    exitWalkMode();
+  });
 
   // Manual save buttons
   async function manualSave() {

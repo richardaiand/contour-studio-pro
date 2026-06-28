@@ -15,7 +15,6 @@ let orbitControlsRef = null;
 let walkHud = null;
 let onKeyDownRef = null;
 let onKeyUpRef = null;
-
 let listenersRegistered = false;
 
 export function initWalkMode(scene, camera, renderer, terrainMesh, orbitControls) {
@@ -55,13 +54,24 @@ export function initWalkMode(scene, camera, renderer, terrainMesh, orbitControls
 }
 
 export function enterWalkMode(startPos = null) {
-  if (!cameraRef || !rendererRef || !terrainMeshRef) return;
+  if (!cameraRef || !rendererRef || !terrainMeshRef) {
+    console.warn('Walk mode: missing refs', { cameraRef, rendererRef, terrainMeshRef });
+    return;
+  }
 
   if (orbitControlsRef) {
     orbitControlsRef.enabled = false;
   }
 
-  walkControls = new PointerLockControls(cameraRef, rendererRef.domElement);
+  const domElement = rendererRef.domElement;
+
+  try {
+    walkControls = new PointerLockControls(cameraRef, domElement);
+  } catch (err) {
+    console.error('Failed to create PointerLockControls:', err);
+    if (orbitControlsRef) orbitControlsRef.enabled = true;
+    return;
+  }
 
   if (startPos) {
     cameraRef.position.set(startPos.x, startPos.y + EYE_HEIGHT, startPos.z);
@@ -72,13 +82,13 @@ export function enterWalkMode(startPos = null) {
     }
   }
 
-  walkControls.lock();
-
   const lockTimeout = setTimeout(() => {
     if (!isWalking) {
+      console.warn('Walk mode: pointer lock not acquired within 3s, exiting');
       try { walkControls.dispose(); } catch {}
       walkControls = null;
       if (orbitControlsRef) orbitControlsRef.enabled = true;
+      if (walkHud) walkHud.classList.add('hidden');
     }
   }, 3000);
 
@@ -94,6 +104,18 @@ export function enterWalkMode(startPos = null) {
       exitWalkMode();
     }
   });
+
+  try {
+    walkControls.lock();
+  } catch (err) {
+    console.error('Pointer lock failed:', err);
+    clearTimeout(lockTimeout);
+    try { walkControls.dispose(); } catch {}
+    walkControls = null;
+    if (orbitControlsRef) orbitControlsRef.enabled = true;
+    if (walkHud) walkHud.classList.add('hidden');
+    return;
+  }
 
   lastTime = performance.now();
   walkAnimId = requestAnimationFrame(walkLoop);
