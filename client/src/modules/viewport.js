@@ -241,8 +241,10 @@ export function drawSelectionOutline(originalBounds, fetchBounds) {
   if (!scene) return;
   if (selectionOutline) {
     scene.remove(selectionOutline);
-    selectionOutline.geometry?.dispose();
-    selectionOutline.material?.dispose();
+    selectionOutline.traverse((obj) => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
+    });
   }
 
   const latMid = (fetchBounds.minLat + fetchBounds.maxLat) / 2;
@@ -261,19 +263,65 @@ export function drawSelectionOutline(originalBounds, fetchBounds) {
   const px = (origCenterLon - fetchBounds.minLon) * xScale - fetchW / 2;
   const pz = (origCenterLat - fetchBounds.minLat) * zScale - fetchH / 2;
 
-  const geo = new THREE.BufferGeometry();
-  const y = 1;
-  const positions = new Float32Array([
-    px - origW / 2, y, pz - origH / 2,
-    px + origW / 2, y, pz - origH / 2,
-    px + origW / 2, y, pz + origH / 2,
-    px - origW / 2, y, pz + origH / 2,
-    px - origW / 2, y, pz - origH / 2,
-  ]);
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const halfW = origW / 2;
+  const halfH = origH / 2;
 
-  const mat = new THREE.LineBasicMaterial({ color: 0x3b82f6 });
-  selectionOutline = new THREE.Line(geo, mat);
+  const x0 = px - halfW;
+  const x1 = px + halfW;
+  const z0 = pz - halfH;
+  const z1 = pz + halfH;
+
+  const yBottom = 0;
+  let yTop = 100;
+  if (terrainMesh?.geometry) {
+    terrainMesh.geometry.computeBoundingBox();
+    const box = terrainMesh.geometry.boundingBox;
+    if (box) yTop = box.max.y + Math.max((box.max.y - box.min.y) * 0.3, 30);
+  }
+
+  const wallHeight = yTop - yBottom;
+  const group = new THREE.Group();
+
+  const wallGeo = new THREE.BufferGeometry();
+  const wallPositions = new Float32Array([
+    x0, yBottom, z0,  x1, yBottom, z0,  x1, yTop, z0,  x0, yTop, z0,
+    x1, yBottom, z0,  x1, yBottom, z1,  x1, yTop, z1,  x1, yTop, z0,
+    x1, yBottom, z1,  x0, yBottom, z1,  x0, yTop, z1,  x1, yTop, z1,
+    x0, yBottom, z1,  x0, yBottom, z0,  x0, yTop, z0,  x0, yTop, z1,
+  ]);
+  wallGeo.setAttribute('position', new THREE.BufferAttribute(wallPositions, 3));
+  wallGeo.setIndex([0,1,2, 0,2,3,  4,5,6, 4,6,7,  8,9,10, 8,10,11,  12,13,14, 12,14,15]);
+
+  const wallMat = new THREE.MeshBasicMaterial({
+    color: 0x3b82f6,
+    transparent: true,
+    opacity: 0.12,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  group.add(new THREE.Mesh(wallGeo, wallMat));
+
+  const edgeGeo = new THREE.BufferGeometry();
+  const edgePositions = new Float32Array([
+    x0, yBottom, z0,  x1, yBottom, z0,
+    x1, yBottom, z0,  x1, yBottom, z1,
+    x1, yBottom, z1,  x0, yBottom, z1,
+    x0, yBottom, z1,  x0, yBottom, z0,
+    x0, yTop, z0,  x1, yTop, z0,
+    x1, yTop, z0,  x1, yTop, z1,
+    x1, yTop, z1,  x0, yTop, z1,
+    x0, yTop, z1,  x0, yTop, z0,
+    x0, yBottom, z0,  x0, yTop, z0,
+    x1, yBottom, z0,  x1, yTop, z0,
+    x1, yBottom, z1,  x1, yTop, z1,
+    x0, yBottom, z1,  x0, yTop, z1,
+  ]);
+  edgeGeo.setAttribute('position', new THREE.BufferAttribute(edgePositions, 3));
+
+  const edgeMat = new THREE.LineBasicMaterial({ color: 0x60a5fa, linewidth: 2 });
+  group.add(new THREE.LineSegments(edgeGeo, edgeMat));
+
+  selectionOutline = group;
   scene.add(selectionOutline);
 }
 
