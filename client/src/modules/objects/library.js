@@ -116,12 +116,20 @@ export function createPerson(height = 1.75) {
   const legRadius = height * 0.05;
   const legGeo = new THREE.CylinderGeometry(legRadius * 0.8, legRadius, legHeight, 6);
   const legMat = new THREE.MeshStandardMaterial({ color: 0x1e3a5f, roughness: 0.8 });
+
+  const leftLegPivot = new THREE.Group();
+  leftLegPivot.position.set(-bodyRadius * 0.5, legHeight / 2 + height * 0.25, 0);
   const leftLeg = new THREE.Mesh(legGeo, legMat);
-  leftLeg.position.set(-bodyRadius * 0.5, legHeight / 2, 0);
-  group.add(leftLeg);
+  leftLeg.position.y = -legHeight / 2;
+  leftLegPivot.add(leftLeg);
+  group.add(leftLegPivot);
+
+  const rightLegPivot = new THREE.Group();
+  rightLegPivot.position.set(bodyRadius * 0.5, legHeight / 2 + height * 0.25, 0);
   const rightLeg = new THREE.Mesh(legGeo, legMat);
-  rightLeg.position.set(bodyRadius * 0.5, legHeight / 2, 0);
-  group.add(rightLeg);
+  rightLeg.position.y = -legHeight / 2;
+  rightLegPivot.add(rightLeg);
+  group.add(rightLegPivot);
 
   const headRadius = height * 0.07;
   const headGeo = new THREE.SphereGeometry(headRadius, 12, 12);
@@ -134,18 +142,30 @@ export function createPerson(height = 1.75) {
   const armRadius = height * 0.035;
   const armGeo = new THREE.CylinderGeometry(armRadius, armRadius * 0.8, armHeight, 6);
   const armMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.7 });
+
+  const leftArmPivot = new THREE.Group();
+  leftArmPivot.position.set(-bodyRadius * 1.2, bodyHeight / 2 + height * 0.25 + armHeight * 0.2, 0);
   const leftArm = new THREE.Mesh(armGeo, armMat);
-  leftArm.position.set(-bodyRadius * 1.2, bodyHeight / 2 + height * 0.25 + armHeight * 0.2, 0);
-  leftArm.rotation.z = 0.2;
-  group.add(leftArm);
+  leftArm.position.y = -armHeight / 2;
+  leftArmPivot.add(leftArm);
+  leftArmPivot.rotation.z = 0.2;
+  group.add(leftArmPivot);
+
+  const rightArmPivot = new THREE.Group();
+  rightArmPivot.position.set(bodyRadius * 1.2, bodyHeight / 2 + height * 0.25 + armHeight * 0.2, 0);
   const rightArm = new THREE.Mesh(armGeo, armMat);
-  rightArm.position.set(bodyRadius * 1.2, bodyHeight / 2 + height * 0.25 + armHeight * 0.2, 0);
-  rightArm.rotation.z = -0.2;
-  group.add(rightArm);
+  rightArm.position.y = -armHeight / 2;
+  rightArmPivot.add(rightArm);
+  rightArmPivot.rotation.z = -0.2;
+  group.add(rightArmPivot);
 
   group.userData.type = 'person';
   group.userData.height = height;
   group.userData.eyeHeight = height * 0.25 + bodyHeight + headRadius;
+  group.userData.leftLeg = leftLegPivot;
+  group.userData.rightLeg = rightLegPivot;
+  group.userData.leftArm = leftArmPivot;
+  group.userData.rightArm = rightArmPivot;
   return group;
 }
 

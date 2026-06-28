@@ -10,9 +10,13 @@ let walkAnimId = null;
 let avatar = null;
 let isWalking = false;
 let lastTime = 0;
+let isMoving = false;
+let walkPhase = 0;
+let thirdPerson = false;
 const moveState = { forward: false, backward: false, left: false, right: false };
 const MOVE_SPEED = 8;
 const EYE_HEIGHT = 1.65;
+const THIRD_PERSON_DISTANCE = 4;
 let terrainMeshRef = null;
 let terrainClone = null;
 let onKeyDownRef = null;
@@ -39,12 +43,10 @@ export function enterWalkMode(startPos = null) {
     return false;
   }
 
-  // Create a dedicated scene for walk mode
   walkScene = new THREE.Scene();
   walkScene.background = new THREE.Color(0x87ceeb);
   walkScene.fog = new THREE.Fog(0x87ceeb, 500, 2000);
 
-  // Clone the terrain geometry into the walk scene
   if (terrainMeshRef.geometry) {
     const geo = terrainMeshRef.geometry.clone();
     const mat = new THREE.MeshStandardMaterial({
@@ -57,40 +59,42 @@ export function enterWalkMode(startPos = null) {
     walkScene.add(terrainClone);
   }
 
-  // Add lights
   const ambient = new THREE.AmbientLight(0xffffff, 0.6);
   walkScene.add(ambient);
   const dir = new THREE.DirectionalLight(0xffffff, 1.0);
   dir.position.set(200, 300, 100);
   walkScene.add(dir);
 
-  // Create walk camera
-  walkCamera = new THREE.PerspectiveCamera(70, canvas.clientWidth / canvas.clientHeight, 0.1, 5000);
+  walkCamera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 5000);
 
-  // Create renderer on the walk canvas
-  walkRenderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: false });
+  walkRenderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   walkRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   walkRenderer.setSize(canvas.clientWidth, canvas.clientHeight);
 
-  // Position camera at terrain center or given start position
+  // Position at terrain center
+  let startX = 0, startZ = 0, terrainY = 0;
   if (startPos) {
-    walkCamera.position.set(startPos.x, startPos.y + EYE_HEIGHT, startPos.z);
+    startX = startPos.x;
+    startZ = startPos.z;
   } else {
     const center = getTerrainCenter();
     if (center) {
-      walkCamera.position.set(center.x, center.y + EYE_HEIGHT, center.z);
-    } else {
-      walkCamera.position.set(0, EYE_HEIGHT, 0);
+      startX = center.x;
+      startZ = center.z;
     }
   }
+  terrainY = getTerrainHeightAt(startX, startZ);
 
-  // Create avatar (visible third-person person model)
+  // Avatar
   avatar = createPerson(1.75);
-  avatar.position.copy(walkCamera.position);
-  avatar.position.y = walkCamera.position.y - EYE_HEIGHT;
+  avatar.position.set(startX, terrainY, startZ);
   walkScene.add(avatar);
 
-  // Create pointer lock controls on the walk canvas
+  // Camera starts in first person at eye level
+  walkCamera.position.set(startX, terrainY + EYE_HEIGHT, startZ);
+  thirdPerson = false;
+  updateCameraLabel();
+
   try {
     walkControls = new PointerLockControls(walkCamera, walkRenderer.domElement);
   } catch (err) {
@@ -104,12 +108,9 @@ export function enterWalkMode(startPos = null) {
   });
 
   walkControls.addEventListener('unlock', () => {
-    if (isWalking) {
-      // Don't fully exit — just pause. User can click to re-lock.
-    }
+    // User can click to re-lock
   });
 
-  // Register keyboard listeners
   if (!listenersRegistered) {
     onKeyDownRef = (e) => {
       if (!isWalking) return;
@@ -118,6 +119,7 @@ export function enterWalkMode(startPos = null) {
         case 'KeyS': case 'ArrowDown': moveState.backward = true; break;
         case 'KeyA': case 'ArrowLeft': moveState.left = true; break;
         case 'KeyD': case 'ArrowRight': moveState.right = true; break;
+        case 'KeyV': toggleCameraMode(); break;
         case 'Escape': exitWalkMode(); break;
       }
     };
@@ -137,26 +139,34 @@ export function enterWalkMode(startPos = null) {
     listenersRegistered = true;
   }
 
-  // Disable orbit controls on the studio view
   if (originalControls) {
     originalControls.enabled = false;
   }
 
-  // Try to lock pointer
   try {
     walkControls.lock();
   } catch (err) {
     console.error('Pointer lock failed:', err);
   }
 
-  // Start render loop
   lastTime = performance.now();
   walkAnimId = requestAnimationFrame(walkLoop);
 
-  // Handle resize
   window.addEventListener('resize', onWalkResize);
 
   return true;
+}
+
+export function toggleCameraMode() {
+  thirdPerson = !thirdPerson;
+  updateCameraLabel();
+}
+
+function updateCameraLabel() {
+  const label = document.getElementById('cameraToggleLabel');
+  if (label) {
+    label.textContent = thirdPerson ? '3rd Person' : '1st Person';
+  }
 }
 
 function onWalkResize() {
@@ -177,6 +187,8 @@ function walkLoop(time) {
   lastTime = time;
 
   updateMovement(delta);
+  updateWalkAnimation(delta);
+  updateCameraPosition();
 
   walkRenderer.render(walkScene, walkCamera);
   walkAnimId = requestAnimationFrame(walkLoop);
@@ -199,26 +211,81 @@ function updateMovement(delta) {
   if (moveState.right) moveDir.add(right);
   if (moveState.left) moveDir.sub(right);
 
-  if (moveDir.lengthSq() > 0) {
+  isMoving = moveDir.lengthSq() > 0;
+
+  if (isMoving) {
     moveDir.normalize();
     const distance = MOVE_SPEED * delta;
 
-    const newX = walkCamera.position.x + moveDir.x * distance;
-    const newZ = walkCamera.position.z + moveDir.z * distance;
+    const newX = avatar.position.x + moveDir.x * distance;
+    const newZ = avatar.position.z + moveDir.z * distance;
 
     const terrainY = getTerrainHeightAt(newX, newZ);
-    walkCamera.position.x = newX;
-    walkCamera.position.z = newZ;
-    walkCamera.position.y = terrainY + EYE_HEIGHT;
+    avatar.position.x = newX;
+    avatar.position.z = newZ;
+    avatar.position.y = terrainY;
 
-    if (avatar) {
-      avatar.position.x = newX;
-      avatar.position.z = newZ;
-      avatar.position.y = terrainY;
-      avatar.rotation.y = Math.atan2(moveDir.x, moveDir.z);
-    }
+    // Face movement direction
+    const targetRotation = Math.atan2(moveDir.x, moveDir.z);
+    let currentRotation = avatar.rotation.y;
+    let diff = targetRotation - currentRotation;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    avatar.rotation.y += diff * Math.min(1, delta * 10);
+  }
+}
+
+function updateWalkAnimation(delta) {
+  if (!avatar) return;
+
+  const leftLeg = avatar.userData.leftLeg;
+  const rightLeg = avatar.userData.rightLeg;
+  const leftArm = avatar.userData.leftArm;
+  const rightArm = avatar.userData.rightArm;
+
+  if (!leftLeg || !rightLeg || !leftArm || !rightArm) return;
+
+  if (isMoving) {
+    walkPhase += delta * 8;
+
+    const swing = Math.sin(walkPhase) * 0.5;
+    leftLeg.rotation.x = swing;
+    rightLeg.rotation.x = -swing;
+    leftArm.rotation.x = -swing * 0.7;
+    rightArm.rotation.x = swing * 0.7;
   } else {
-    const terrainY = getTerrainHeightAt(walkCamera.position.x, walkCamera.position.z);
+    // Ease back to idle
+    walkPhase = 0;
+    leftLeg.rotation.x *= 0.8;
+    rightLeg.rotation.x *= 0.8;
+    leftArm.rotation.x *= 0.8;
+    rightArm.rotation.x *= 0.8;
+    leftArm.rotation.z = 0.2;
+    rightArm.rotation.z = -0.2;
+  }
+}
+
+function updateCameraPosition() {
+  if (!walkCamera || !avatar) return;
+
+  const terrainY = getTerrainHeightAt(avatar.position.x, avatar.position.z);
+
+  if (thirdPerson) {
+    // Camera behind and above avatar
+    const forward = new THREE.Vector3();
+    walkCamera.getWorldDirection(forward);
+    forward.y = 0;
+    forward.normalize();
+
+    const camX = avatar.position.x - forward.x * THIRD_PERSON_DISTANCE;
+    const camZ = avatar.position.z - forward.z * THIRD_PERSON_DISTANCE;
+    const camY = terrainY + EYE_HEIGHT + THIRD_PERSON_DISTANCE * 0.5;
+
+    walkCamera.position.set(camX, camY, camZ);
+  } else {
+    // First person: camera at avatar's eye level
+    walkCamera.position.x = avatar.position.x;
+    walkCamera.position.z = avatar.position.z;
     walkCamera.position.y = terrainY + EYE_HEIGHT;
   }
 }
@@ -265,6 +332,7 @@ function getTerrainCenter() {
 
 export function exitWalkMode() {
   isWalking = false;
+  isMoving = false;
 
   if (walkControls) {
     if (walkControls.isLocked) {

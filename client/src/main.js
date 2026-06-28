@@ -12,7 +12,7 @@ import { startWalkthrough, shouldShowWalkthrough } from './modules/walkthrough.j
 import { initEnvironment, loadEnvironmentalReport } from './modules/environment.js';
 import { loadUtilities, renderUtilityPipes, clearUtilityPipes } from './modules/utilities.js';
 import { initPlacement, setPlacementMode, clearPlacedObjects, getPlacementMode, disposePlacement } from './modules/placement.js';
-import { initWalkMode, enterWalkMode, exitWalkMode, isWalkMode } from './modules/walk-mode.js';
+import { initWalkMode, enterWalkMode, exitWalkMode, isWalkMode, toggleCameraMode } from './modules/walk-mode.js';
 
 async function init() {
   initTheme();
@@ -262,6 +262,12 @@ async function init() {
     if (!isWalkMode()) {
       enterWalkMode();
     }
+  });
+
+  // Camera toggle button
+  $('cameraToggleBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleCameraMode();
   });
 
   // Manual save buttons

@@ -310,13 +310,18 @@
     <!-- ===== WALK VIEW ===== -->
     <section class="view view-walk hidden" id="view-walk">
       <div class="walk-hud">
-        <button id="exitWalk" class="ghost" title="Exit first-person mode">
+        <button id="exitWalk" class="ghost" title="Exit walk mode">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           Back to Studio
+        </button>
+        <button id="cameraToggleBtn" class="ghost" title="Switch camera view">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          <span id="cameraToggleLabel">1st Person</span>
         </button>
         <div class="walk-controls-hint">
           <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span>
           <span><kbd>Mouse</kbd> Look</span>
+          <span><kbd>V</kbd> Camera</span>
           <span><kbd>Esc</kbd> Exit</span>
         </div>
       </div>
