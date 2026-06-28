@@ -107,8 +107,7 @@ async function processTerrainJob(job, setProgress) {
     ? updateProjectFromJob(job.payload.projectId, job, dem, mesh)
     : createProjectFromJob(job, dem, mesh);
 
-  // Send phase 1 result so client can show terrain immediately
-  // Keep status as 'running' with progress 50 — client detects phase via result.phase
+  // Phase 1 result — metadata only, no mesh data (client fetches from project endpoint)
   await updateJob(job.id, {
     progress: 50,
     result: {
@@ -116,29 +115,12 @@ async function processTerrainJob(job, setProgress) {
       projectTitle: project.title,
       detailLevel,
       resolutionMeters: dem.resolutionMeters,
-      minElevation: mesh.minElevation,
-      maxElevation: mesh.maxElevation,
-      verticalExaggeration,
       sources: dem.sources,
       sourceDescription: selectSourceDescription(dem.sources, detailLevel),
-      attribution: dem.attribution,
       wasExpanded: dem.wasExpanded || false,
-      expansionNote: dem.expansionNote || null,
       originalBounds: dem.originalBounds || bounds,
       fetchBounds: dem.fetchBounds || bounds,
       phase: 1,
-      mesh: {
-        width: mesh.width,
-        height: mesh.height,
-        grid: mesh.grid,
-        positions: mesh.positions,
-        normals: mesh.normals,
-        uvs: mesh.uvs,
-        colors: mesh.colors,
-        indices: mesh.indices,
-        minElevation: mesh.minElevation,
-        maxElevation: mesh.maxElevation,
-      },
     },
   });
 
@@ -147,7 +129,6 @@ async function processTerrainJob(job, setProgress) {
   let enhanced = false;
 
   if (bounds.minLat >= 24 && bounds.maxLat <= 50 && bounds.minLon >= -125 && bounds.maxLon <= -66) {
-    // TNM DEM enhancement
     try {
       setProgress(60);
       const targetSize = dem.grid.length;
@@ -166,7 +147,6 @@ async function processTerrainJob(job, setProgress) {
       console.warn(`TNM enhancement failed (non-fatal): ${err.message}`);
     }
 
-    // AI topo map hybrid
     try {
       setProgress(75);
       const hybridResult = await enhanceWithTopoMap(bounds, dem.grid, meshBounds, job.userId);
@@ -189,7 +169,6 @@ async function processTerrainJob(job, setProgress) {
     }
   }
 
-  // If enhancement happened, rebuild mesh and update project
   if (enhanced) {
     setProgress(90);
     const enhancedMesh = gridToMesh(dem.grid, meshBounds, { verticalExaggeration });
@@ -200,79 +179,25 @@ async function processTerrainJob(job, setProgress) {
     enhancedMesh.uvs = enhancedCleaned.uvs;
     enhancedMesh.colors = enhancedCleaned.colors;
 
-    // Update project with enhanced version
     updateProjectTerrain(project.id, dem, enhancedMesh);
-
-    // Update job with phase 2 result
-    await updateJob(job.id, {
-      status: 'completed',
-      progress: 100,
-      result: {
-        projectId: project.id,
-        projectTitle: project.title,
-        detailLevel,
-        resolutionMeters: dem.resolutionMeters,
-        minElevation: enhancedMesh.minElevation,
-        maxElevation: enhancedMesh.maxElevation,
-        verticalExaggeration,
-        sources: dem.sources,
-        sourceDescription: selectSourceDescription(dem.sources, detailLevel),
-        attribution: dem.attribution,
-        wasExpanded: dem.wasExpanded || false,
-        expansionNote: dem.expansionNote || null,
-        originalBounds: dem.originalBounds || bounds,
-        fetchBounds: dem.fetchBounds || bounds,
-        topoMap: topoMapInfo,
-        phase: 2,
-        mesh: {
-          width: enhancedMesh.width,
-          height: enhancedMesh.height,
-          grid: enhancedMesh.grid,
-          positions: enhancedMesh.positions,
-          normals: enhancedMesh.normals,
-          uvs: enhancedMesh.uvs,
-          colors: enhancedMesh.colors,
-          indices: enhancedMesh.indices,
-          minElevation: enhancedMesh.minElevation,
-          maxElevation: enhancedMesh.maxElevation,
-        },
-      },
-    });
-  } else {
-    // No enhancement — just mark as completed
-    await updateJob(job.id, {
-      status: 'completed',
-      progress: 100,
-      result: {
-        projectId: project.id,
-        projectTitle: project.title,
-        detailLevel,
-        resolutionMeters: dem.resolutionMeters,
-        minElevation: mesh.minElevation,
-        maxElevation: mesh.maxElevation,
-        verticalExaggeration,
-        sources: dem.sources,
-        sourceDescription: selectSourceDescription(dem.sources, detailLevel),
-        attribution: dem.attribution,
-        wasExpanded: dem.wasExpanded || false,
-        expansionNote: dem.expansionNote || null,
-        originalBounds: dem.originalBounds || bounds,
-        fetchBounds: dem.fetchBounds || bounds,
-        topoMap: topoMapInfo,
-        phase: 2,
-        mesh: {
-          width: mesh.width,
-          height: mesh.height,
-          grid: mesh.grid,
-          positions: mesh.positions,
-          normals: mesh.normals,
-          uvs: mesh.uvs,
-          colors: mesh.colors,
-          indices: mesh.indices,
-          minElevation: mesh.minElevation,
-          maxElevation: mesh.maxElevation,
-        },
-      },
-    });
   }
+
+  // Phase 2 result — metadata only, client fetches mesh from project endpoint
+  await updateJob(job.id, {
+    status: 'completed',
+    progress: 100,
+    result: {
+      projectId: project.id,
+      projectTitle: project.title,
+      detailLevel,
+      resolutionMeters: dem.resolutionMeters,
+      sources: dem.sources,
+      sourceDescription: selectSourceDescription(dem.sources, detailLevel),
+      wasExpanded: dem.wasExpanded || false,
+      originalBounds: dem.originalBounds || bounds,
+      fetchBounds: dem.fetchBounds || bounds,
+      topoMap: topoMapInfo,
+      phase: 2,
+    },
+  });
 }
