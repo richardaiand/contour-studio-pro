@@ -1,10 +1,9 @@
 import { AppError } from '../../errors.js';
+import { setTimeout as sleep } from 'timers/promises';
 
 const ENDPOINT = 'https://api.open-meteo.com/v1/elevation';
 
 export async function fetchElevation(bounds, detail) {
-  // Build a grid of sample points. Open-Meteo accepts up to 100 locations per request,
-  // so we cap the grid to keep request count reasonable.
   const samples = Math.max(5, Math.min(48, detail.meshSize, detail.maxSamples));
   const points = [];
 
@@ -16,7 +15,6 @@ export async function fetchElevation(bounds, detail) {
     }
   }
 
-  // Open-Meteo accepts up to 100 locations per request, but we use 50 to avoid URL length limits
   const chunkSize = 50;
   const results = [];
 
@@ -29,22 +27,7 @@ export async function fetchElevation(bounds, detail) {
     url.searchParams.set('latitude', lats);
     url.searchParams.set('longitude', lons);
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
-
-    let res;
-    try {
-      res = await fetch(url, { signal: controller.signal });
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new AppError(`Open-Meteo error ${res.status}: ${text.slice(0, 200)}`, 502, 'DEM_ERROR');
-    }
-
-    const data = await res.json();
+    const data = await fetchWithRetry(url, 3);
     if (!Array.isArray(data.elevation)) {
       throw new AppError('Unexpected Open-Meteo response format', 502, 'DEM_ERROR');
     }
@@ -65,6 +48,42 @@ export async function fetchElevation(bounds, detail) {
     source: 'open-meteo',
     attribution: 'Elevation data by Open-Meteo (SRTM/ASTER)',
   };
+}
+
+async function fetchWithRetry(url, maxRetries) {
+  let lastError;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    let res;
+    try {
+      res = await fetch(url, { signal: controller.signal });
+    } catch (err) {
+      clearTimeout(timeout);
+      lastError = err;
+      if (attempt < maxRetries) {
+        await sleep(2000 * (attempt + 1));
+        continue;
+      }
+      throw new AppError(`Open-Meteo fetch failed: ${err.message}`, 502, 'DEM_ERROR');
+    }
+    clearTimeout(timeout);
+
+    if (res.status === 429 && attempt < maxRetries) {
+      const retryAfter = parseInt(res.headers.get('retry-after') || '0', 10);
+      await sleep(Math.max(retryAfter * 1000, 3000));
+      continue;
+    }
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new AppError(`Open-Meteo error ${res.status}: ${text.slice(0, 200)}`, 502, 'DEM_ERROR');
+    }
+
+    return await res.json();
+  }
+  throw lastError || new AppError('Open-Meteo failed after retries', 502, 'DEM_ERROR');
 }
 
 function estimateResolutionMeters(bounds, samples) {

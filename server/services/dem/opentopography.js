@@ -25,7 +25,11 @@ export async function fetchDem(bounds, detail) {
   const endpoint = isUsgs ? USGS_ENDPOINT : GLOBAL_ENDPOINT;
 
   const url = new URL(endpoint);
-  url.searchParams.set('demtype', dataset);
+  if (isUsgs) {
+    url.searchParams.set('datasetName', dataset);
+  } else {
+    url.searchParams.set('demtype', dataset);
+  }
   url.searchParams.set('south', bounds.minLat.toFixed(6));
   url.searchParams.set('north', bounds.maxLat.toFixed(6));
   url.searchParams.set('west', bounds.minLon.toFixed(6));
