@@ -99,12 +99,8 @@ export function enterWalkMode(startPos = null) {
   avatar.position.set(startX, terrainY, startZ);
   walkScene.add(avatar);
 
-  // Find head mesh to hide in first person
-  avatar.traverse((obj) => {
-    if (obj.geometry instanceof THREE.SphereGeometry) {
-      avatarHead = obj;
-    }
-  });
+  // Find head to hide in first person
+  avatarHead = avatar.userData.head || null;
 
   // Selection border
   const terrain = store.get('currentTerrain');
@@ -343,25 +339,33 @@ function updateWalkAnimation(delta) {
   const rightLeg = avatar.userData.rightLeg;
   const leftArm = avatar.userData.leftArm;
   const rightArm = avatar.userData.rightArm;
+  const leftElbow = avatar.userData.leftElbow;
+  const rightElbow = avatar.userData.rightElbow;
 
   if (!leftLeg || !rightLeg || !leftArm || !rightArm) return;
 
   if (isMoving) {
     walkPhase += delta * 8;
 
-    const swing = Math.sin(walkPhase) * 0.5;
+    const swing = Math.sin(walkPhase) * 0.4;
+    // Legs swing from hip
     leftLeg.rotation.x = swing;
     rightLeg.rotation.x = -swing;
-    leftArm.rotation.x = -swing * 0.7;
-    rightArm.rotation.x = swing * 0.7;
+    // Shoulders swing opposite to legs
+    leftArm.rotation.x = -swing * 0.6;
+    rightArm.rotation.x = swing * 0.6;
+    // Elbows bend slightly during walk
+    if (leftElbow) leftElbow.rotation.x = Math.max(0, -swing * 0.3) + 0.15;
+    if (rightElbow) rightElbow.rotation.x = Math.max(0, swing * 0.3) + 0.15;
   } else {
+    // Ease back to idle
     walkPhase = 0;
     leftLeg.rotation.x *= 0.8;
     rightLeg.rotation.x *= 0.8;
     leftArm.rotation.x *= 0.8;
     rightArm.rotation.x *= 0.8;
-    leftArm.rotation.z = 0.2;
-    rightArm.rotation.z = -0.2;
+    if (leftElbow) leftElbow.rotation.x = (leftElbow.rotation.x - 0.15) * 0.8 + 0.15;
+    if (rightElbow) rightElbow.rotation.x = (rightElbow.rotation.x - 0.15) * 0.8 + 0.15;
   }
 }
 

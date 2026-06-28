@@ -104,68 +104,118 @@ function createBuilding(width = 10, height = 6, depth = 10) {
 export function createPerson(height = 1.75) {
   const group = new THREE.Group();
 
-  const bodyHeight = height * 0.45;
-  const bodyRadius = height * 0.08;
-  const bodyGeo = new THREE.CylinderGeometry(bodyRadius * 0.7, bodyRadius, bodyHeight, 8);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.7 });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.y = bodyHeight / 2 + height * 0.25;
-  group.add(body);
+  // Proportions
+  const legHeight = height * 0.45;
+  const torsoHeight = height * 0.30;
+  const headRadius = height * 0.06;
+  const upperArmLength = height * 0.18;
+  const forearmLength = height * 0.16;
+  const armRadius = height * 0.028;
+  const torsoRadius = height * 0.09;
+  const legRadius = height * 0.045;
+  const handRadius = height * 0.025;
 
-  const legHeight = height * 0.25;
-  const legRadius = height * 0.05;
-  const legGeo = new THREE.CylinderGeometry(legRadius * 0.8, legRadius, legHeight, 6);
-  const legMat = new THREE.MeshStandardMaterial({ color: 0x1e3a5f, roughness: 0.8 });
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xfdbcb4, roughness: 0.6 });
+  const shirtMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 });
+  const pantsMat = new THREE.MeshStandardMaterial({ color: 0x2d3748, roughness: 0.8 });
+
+  // Y=0 is ground level. Build up from feet.
+  // Legs: 0 to legHeight
+  const legGeo = new THREE.CylinderGeometry(legRadius * 0.7, legRadius, legHeight, 6);
 
   const leftLegPivot = new THREE.Group();
-  leftLegPivot.position.set(-bodyRadius * 0.5, legHeight / 2 + height * 0.25, 0);
-  const leftLeg = new THREE.Mesh(legGeo, legMat);
+  leftLegPivot.position.set(-torsoRadius * 0.45, legHeight, 0);
+  const leftLeg = new THREE.Mesh(legGeo, pantsMat);
   leftLeg.position.y = -legHeight / 2;
   leftLegPivot.add(leftLeg);
   group.add(leftLegPivot);
 
   const rightLegPivot = new THREE.Group();
-  rightLegPivot.position.set(bodyRadius * 0.5, legHeight / 2 + height * 0.25, 0);
-  const rightLeg = new THREE.Mesh(legGeo, legMat);
+  rightLegPivot.position.set(torsoRadius * 0.45, legHeight, 0);
+  const rightLeg = new THREE.Mesh(legGeo, pantsMat);
   rightLeg.position.y = -legHeight / 2;
   rightLegPivot.add(rightLeg);
   group.add(rightLegPivot);
 
-  const headRadius = height * 0.07;
-  const headGeo = new THREE.SphereGeometry(headRadius, 12, 12);
-  const headMat = new THREE.MeshStandardMaterial({ color: 0xfdbcb4, roughness: 0.6 });
-  const head = new THREE.Mesh(headGeo, headMat);
-  head.position.y = bodyHeight + height * 0.25 + headRadius;
+  // Torso: legHeight to legHeight + torsoHeight
+  const torsoGeo = new THREE.CylinderGeometry(torsoRadius * 0.8, torsoRadius, torsoHeight, 10);
+  const torso = new THREE.Mesh(torsoGeo, shirtMat);
+  torso.position.y = legHeight + torsoHeight / 2;
+  group.add(torso);
+
+  // Shoulders (slightly wider than torso top)
+  const shoulderY = legHeight + torsoHeight;
+  const shoulderOffset = torsoRadius * 0.85;
+
+  // Neck
+  const neckGeo = new THREE.CylinderGeometry(headRadius * 0.4, headRadius * 0.5, height * 0.04, 6);
+  const neck = new THREE.Mesh(neckGeo, skinMat);
+  neck.position.y = shoulderY + height * 0.02;
+  group.add(neck);
+
+  // Head
+  const headGeo = new THREE.SphereGeometry(headRadius, 16, 16);
+  const head = new THREE.Mesh(headGeo, skinMat);
+  head.position.y = shoulderY + height * 0.06 + headRadius;
   group.add(head);
 
-  const armHeight = height * 0.3;
-  const armRadius = height * 0.035;
-  const armGeo = new THREE.CylinderGeometry(armRadius, armRadius * 0.8, armHeight, 6);
-  const armMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.7 });
+  // Arms with shoulder pivot + elbow
+  const upperArmGeo = new THREE.CylinderGeometry(armRadius, armRadius * 0.9, upperArmLength, 6);
+  const forearmGeo = new THREE.CylinderGeometry(armRadius * 0.9, armRadius * 0.7, forearmLength, 6);
+  const handGeo = new THREE.SphereGeometry(handRadius, 8, 8);
 
-  const leftArmPivot = new THREE.Group();
-  leftArmPivot.position.set(-bodyRadius * 1.2, bodyHeight / 2 + height * 0.25 + armHeight * 0.2, 0);
-  const leftArm = new THREE.Mesh(armGeo, armMat);
-  leftArm.position.y = -armHeight / 2;
-  leftArmPivot.add(leftArm);
-  leftArmPivot.rotation.z = 0.2;
-  group.add(leftArmPivot);
+  // Left arm: shoulder pivot -> upper arm -> elbow pivot -> forearm + hand
+  const leftShoulder = new THREE.Group();
+  leftShoulder.position.set(-shoulderOffset, shoulderY - height * 0.02, 0);
+  group.add(leftShoulder);
 
-  const rightArmPivot = new THREE.Group();
-  rightArmPivot.position.set(bodyRadius * 1.2, bodyHeight / 2 + height * 0.25 + armHeight * 0.2, 0);
-  const rightArm = new THREE.Mesh(armGeo, armMat);
-  rightArm.position.y = -armHeight / 2;
-  rightArmPivot.add(rightArm);
-  rightArmPivot.rotation.z = -0.2;
-  group.add(rightArmPivot);
+  const leftUpperArm = new THREE.Mesh(upperArmGeo, shirtMat);
+  leftUpperArm.position.y = -upperArmLength / 2;
+  leftShoulder.add(leftUpperArm);
+
+  const leftElbow = new THREE.Group();
+  leftElbow.position.y = -upperArmLength;
+  leftShoulder.add(leftElbow);
+
+  const leftForearm = new THREE.Mesh(forearmGeo, skinMat);
+  leftForearm.position.y = -forearmLength / 2;
+  leftElbow.add(leftForearm);
+
+  const leftHand = new THREE.Mesh(handGeo, skinMat);
+  leftHand.position.y = -forearmLength - handRadius * 0.3;
+  leftElbow.add(leftHand);
+
+  // Right arm
+  const rightShoulder = new THREE.Group();
+  rightShoulder.position.set(shoulderOffset, shoulderY - height * 0.02, 0);
+  group.add(rightShoulder);
+
+  const rightUpperArm = new THREE.Mesh(upperArmGeo, shirtMat);
+  rightUpperArm.position.y = -upperArmLength / 2;
+  rightShoulder.add(rightUpperArm);
+
+  const rightElbow = new THREE.Group();
+  rightElbow.position.y = -upperArmLength;
+  rightShoulder.add(rightElbow);
+
+  const rightForearm = new THREE.Mesh(forearmGeo, skinMat);
+  rightForearm.position.y = -forearmLength / 2;
+  rightElbow.add(rightForearm);
+
+  const rightHand = new THREE.Mesh(handGeo, skinMat);
+  rightHand.position.y = -forearmLength - handRadius * 0.3;
+  rightElbow.add(rightHand);
 
   group.userData.type = 'person';
   group.userData.height = height;
-  group.userData.eyeHeight = height * 0.25 + bodyHeight + headRadius;
+  group.userData.eyeHeight = legHeight + torsoHeight + height * 0.06 + headRadius * 2;
+  group.userData.head = head;
   group.userData.leftLeg = leftLegPivot;
   group.userData.rightLeg = rightLegPivot;
-  group.userData.leftArm = leftArmPivot;
-  group.userData.rightArm = rightArmPivot;
+  group.userData.leftArm = leftShoulder;
+  group.userData.rightArm = rightShoulder;
+  group.userData.leftElbow = leftElbow;
+  group.userData.rightElbow = rightElbow;
   return group;
 }
 
