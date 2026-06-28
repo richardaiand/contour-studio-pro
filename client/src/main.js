@@ -11,7 +11,6 @@ import { initRouter, setInitialView, navigate, getCurrentView } from './router.j
 import { startWalkthrough, shouldShowWalkthrough } from './modules/walkthrough.js';
 import { initEnvironment, loadEnvironmentalReport } from './modules/environment.js';
 import { loadUtilities, renderUtilityPipes, clearUtilityPipes } from './modules/utilities.js';
-import { initPlacement, setPlacementMode, clearPlacedObjects, getPlacementMode, disposePlacement } from './modules/placement.js';
 import { initWalkMode, enterWalkMode, exitWalkMode, isWalkMode, toggleCameraMode } from './modules/walk-mode.js';
 
 async function init() {
@@ -158,59 +157,6 @@ async function init() {
 
   $('toggleSewerBtn')?.addEventListener('click', () => toggleUtility('sewer'));
   $('toggleWaterBtn')?.addEventListener('click', () => toggleUtility('water'));
-
-  // ===== Object Placement =====
-  // Initialize placement when terrain is loaded
-  let placementInitialized = false;
-  store.subscribe((state) => {
-    if (state.currentTerrain && !placementInitialized) {
-      const scene = getScene();
-      const camera = getCamera();
-      const renderer = getRenderer();
-      const mesh = getTerrainMesh();
-      if (scene && camera && renderer && mesh) {
-        initPlacement(scene, camera, renderer, mesh);
-        placementInitialized = true;
-      }
-    }
-    if (!state.currentTerrain && placementInitialized) {
-      disposePlacement();
-      placementInitialized = false;
-    }
-  });
-
-  function setupPlacementButton(btnId, objectType) {
-    $(btnId)?.addEventListener('click', () => {
-      const mesh = getTerrainMesh();
-      if (!mesh) {
-        setStatus('Generate terrain first to place objects.', 'error');
-        return;
-      }
-      const current = getPlacementMode();
-      if (current === objectType) {
-        setPlacementMode(null);
-        $(btnId)?.classList.remove('active');
-        $('placementHint').style.display = 'none';
-      } else {
-        document.querySelectorAll('.object-palette button').forEach((b) => b.classList.remove('active'));
-        $(btnId)?.classList.add('active');
-        setPlacementMode(objectType);
-        $('placementHint').style.display = 'block';
-      }
-    });
-  }
-  setupPlacementButton('placeTreeBtn', 'tree');
-  setupPlacementButton('placeRockBtn', 'rock');
-  setupPlacementButton('placeBuildingBtn', 'building');
-  setupPlacementButton('placePersonBtn', 'person');
-
-  $('clearObjectsBtn')?.addEventListener('click', () => {
-    clearPlacedObjects();
-    document.querySelectorAll('.object-palette button').forEach((b) => b.classList.remove('active'));
-    setPlacementMode(null);
-    $('placementHint').style.display = 'none';
-    setStatus('All placed objects cleared.', 'ok');
-  });
 
   // ===== Walk Mode =====
   $('enterWalkBtn')?.addEventListener('click', () => {
