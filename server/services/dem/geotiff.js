@@ -13,15 +13,21 @@ export async function parseGeoTiff(arrayBuffer) {
   const width = image.getWidth();
   const height = image.getHeight();
 
-  // Try to read no-data value from GeoTIFF metadata
   let noData = null;
   const gdalNoData = image.getGDALNoData?.();
   if (gdalNoData !== undefined && gdalNoData !== null && !Number.isNaN(Number(gdalNoData))) {
     noData = Number(gdalNoData);
   }
 
+  let bounds = null;
+  try {
+    const bbox = image.getBoundingBox();
+    if (bbox && bbox.length === 4) {
+      bounds = { minLon: bbox[0], minLat: bbox[1], maxLon: bbox[2], maxLat: bbox[3] };
+    }
+  } catch {}
+
   const data = await image.readRasters();
-  // readRasters returns an array of bands; DEMs are typically single-band.
   const values = Array.isArray(data) ? data[0] : data;
 
   const grid = [];
@@ -38,8 +44,7 @@ export async function parseGeoTiff(arrayBuffer) {
     grid.push(row);
   }
 
-  // GeoTIFF row 0 is usually north; our mesh expects row 0 to be south (minLat).
   grid.reverse();
 
-  return { width, height, grid, noData };
+  return { width, height, grid, noData, bounds };
 }
