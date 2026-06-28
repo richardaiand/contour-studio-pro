@@ -14,10 +14,10 @@ let selectionBorder = null;
 let isWalking = false;
 let lastTime = 0;
 let isMoving = false;
+let isBackward = false;
 let walkPhase = 0;
 let thirdPerson = false;
 let smoothedY = 0;
-let cameraYaw = 0;
 let frameCount = 0;
 const moveState = { forward: false, backward: false, left: false, right: false };
 const MOVE_SPEED = 8;
@@ -25,15 +25,16 @@ const EYE_HEIGHT = 1.65;
 const THIRD_PERSON_DISTANCE = 5;
 const THIRD_PERSON_HEIGHT = 2.5;
 const SMOOTH_FACTOR = 0.15;
+const MOUSE_SENSITIVITY = 1.5;
 let terrainMeshRef = null;
 let terrainClone = null;
 let onKeyDownRef = null;
 let onKeyUpRef = null;
+let onMouseMoveRef = null;
 let listenersRegistered = false;
 let originalCamera = null;
 let originalControls = null;
 
-// Reused objects (no per-frame allocation)
 const raycaster = new THREE.Raycaster();
 const downDir = new THREE.Vector3(0, -1, 0);
 const raycastOrigin = new THREE.Vector3();
@@ -41,6 +42,9 @@ const moveDir = new THREE.Vector3();
 const rightVec = new THREE.Vector3();
 const forwardVec = new THREE.Vector3();
 const avatarForward = new THREE.Vector3();
+const tempEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+let lastTerrainY = 0;
+let lastCamTerrainY = 0;
 
 export function initWalkMode(scene, camera, renderer, terrainMesh, orbitControls) {
   terrainMeshRef = terrainMesh;
@@ -83,13 +87,12 @@ export function enterWalkMode(startPos = null) {
   dir.position.set(200, 300, 100);
   walkScene.add(dir);
 
-  walkCamera = new THREE.PerspectiveCamera(70, canvas.clientWidth / canvas.clientHeight, 0.1, 2000);
+  walkCamera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 2000);
 
   walkRenderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
   walkRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   walkRenderer.setSize(canvas.clientWidth, canvas.clientHeight);
 
-  // Position at terrain center
   let startX = 0, startZ = 0, terrainY = 0;
   if (startPos) {
     startX = startPos.x;
@@ -104,21 +107,18 @@ export function enterWalkMode(startPos = null) {
   terrainY = getTerrainHeightAt(startX, startZ);
   smoothedY = terrainY;
 
-  // Avatar
   avatar = createPerson(1.75);
   avatar.position.set(startX, terrainY, startZ);
   walkScene.add(avatar);
 
   avatarHead = avatar.userData.head || null;
 
-  // Selection border
   const terrain = store.get('currentTerrain');
   if (terrain?.originalBounds && terrain?.fetchBounds) {
     createSelectionBorder(terrain.originalBounds, terrain.fetchBounds);
   }
 
   walkCamera.position.set(startX, terrainY + EYE_HEIGHT, startZ);
-  cameraYaw = 0;
   thirdPerson = false;
   updateCameraLabel();
   updateHeadVisibility();
@@ -160,8 +160,20 @@ export function enterWalkMode(startPos = null) {
       }
     };
 
+    // Custom mouse look with adjustable sensitivity
+    onMouseMoveRef = (e) => {
+      if (!isWalking || !walkControls.isLocked) return;
+      const yaw = -e.movementX * 0.002 * MOUSE_SENSITIVITY;
+      const pitch = -e.movementY * 0.002 * MOUSE_SENSITIVITY;
+      walkControls.getObject().rotation.y += yaw;
+      tempEuler.copy(walkControls.getObject().rotation);
+      tempEuler.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, tempEuler.x + pitch));
+      walkControls.getObject().rotation.copy(tempEuler);
+    };
+
     document.addEventListener('keydown', onKeyDownRef);
     document.addEventListener('keyup', onKeyUpRef);
+    document.addEventListener('mousemove', onMouseMoveRef);
     listenersRegistered = true;
   }
 
@@ -293,7 +305,7 @@ function walkLoop(time) {
 
   updateMovement(delta);
   updateWalkAnimation(delta);
-  updateCameraPosition(delta);
+  updateCameraPosition();
 
   walkRenderer.render(walkScene, walkCamera);
   walkAnimId = requestAnimationFrame(walkLoop);
@@ -302,7 +314,7 @@ function walkLoop(time) {
 function updateMovement(delta) {
   if (!walkControls || !walkControls.isLocked) return;
 
-  // Get camera direction for movement (always based on where you're looking)
+  // Get camera's look direction for movement basis
   walkCamera.getWorldDirection(forwardVec);
   forwardVec.y = 0;
   forwardVec.normalize();
@@ -315,6 +327,7 @@ function updateMovement(delta) {
   if (moveState.left) moveDir.sub(rightVec);
 
   isMoving = moveDir.lengthSq() > 0;
+  isBackward = moveState.backward && !moveState.forward;
 
   if (isMoving) {
     moveDir.normalize();
@@ -323,7 +336,6 @@ function updateMovement(delta) {
     const newX = avatar.position.x + moveDir.x * distance;
     const newZ = avatar.position.z + moveDir.z * distance;
 
-    // Only raycast terrain height when actually moving (every 2nd frame to save GPU)
     let terrainY;
     if (frameCount % 2 === 0) {
       terrainY = getTerrainHeightAt(newX, newZ);
@@ -335,17 +347,14 @@ function updateMovement(delta) {
     avatar.position.x = newX;
     avatar.position.z = newZ;
     avatar.position.y = terrainY;
-
-    // Face movement direction smoothly
-    const targetRotation = Math.atan2(moveDir.x, moveDir.z);
-    let diff = targetRotation - avatar.rotation.y;
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-    avatar.rotation.y += diff * Math.min(1, delta * 10);
   }
-}
 
-let lastTerrainY = 0;
+  // Avatar always faces camera forward direction (not movement direction)
+  // This means strafing doesn't rotate the avatar, and walking backward
+  // keeps the avatar facing forward (just with reversed animation)
+  const camYaw = Math.atan2(forwardVec.x, forwardVec.z);
+  avatar.rotation.y = camYaw;
+}
 
 function updateWalkAnimation(delta) {
   if (!avatar) return;
@@ -363,12 +372,14 @@ function updateWalkAnimation(delta) {
     walkPhase += delta * 8;
 
     const swing = Math.sin(walkPhase) * 0.4;
-    leftLeg.rotation.x = swing;
-    rightLeg.rotation.x = -swing;
-    leftArm.rotation.x = -swing * 0.6;
-    rightArm.rotation.x = swing * 0.6;
-    if (leftElbow) leftElbow.rotation.x = Math.max(0, -swing * 0.3) + 0.15;
-    if (rightElbow) rightElbow.rotation.x = Math.max(0, swing * 0.3) + 0.15;
+    // Reverse leg swing when walking backward
+    const dir = isBackward ? -1 : 1;
+    leftLeg.rotation.x = swing * dir;
+    rightLeg.rotation.x = -swing * dir;
+    leftArm.rotation.x = -swing * 0.6 * dir;
+    rightArm.rotation.x = swing * 0.6 * dir;
+    if (leftElbow) leftElbow.rotation.x = Math.max(0, -swing * 0.3 * dir) + 0.15;
+    if (rightElbow) rightElbow.rotation.x = Math.max(0, swing * 0.3 * dir) + 0.15;
   } else {
     walkPhase = 0;
     leftLeg.rotation.x *= 0.8;
@@ -380,10 +391,9 @@ function updateWalkAnimation(delta) {
   }
 }
 
-function updateCameraPosition(delta) {
+function updateCameraPosition() {
   if (!walkCamera || !avatar) return;
 
-  // Only raycast terrain height every 3rd frame for camera Y
   let targetY;
   if (frameCount % 3 === 0) {
     targetY = getTerrainHeightAt(avatar.position.x, avatar.position.z);
@@ -395,33 +405,29 @@ function updateCameraPosition(delta) {
   smoothedY += (targetY - smoothedY) * SMOOTH_FACTOR;
 
   if (thirdPerson) {
-    // Use avatar's facing direction (not camera direction) for 3rd person
-    avatarForward.set(0, 0, 1);
-    avatarForward.applyEuler(avatar.rotation);
-    avatarForward.y = 0;
-    avatarForward.normalize();
+    // Camera behind avatar based on camera's own yaw (not avatar rotation)
+    // This way mouse look rotates the camera around the avatar
+    walkCamera.getWorldDirection(forwardVec);
+    forwardVec.y = 0;
+    forwardVec.normalize();
 
-    const camX = avatar.position.x - avatarForward.x * THIRD_PERSON_DISTANCE;
-    const camZ = avatar.position.z - avatarForward.z * THIRD_PERSON_DISTANCE;
+    const camX = avatar.position.x - forwardVec.x * THIRD_PERSON_DISTANCE;
+    const camZ = avatar.position.z - forwardVec.z * THIRD_PERSON_DISTANCE;
     const camY = smoothedY + THIRD_PERSON_HEIGHT;
 
     walkCamera.position.set(camX, camY, camZ);
-    // Look at avatar's upper body
     walkCamera.lookAt(avatar.position.x, smoothedY + 1.2, avatar.position.z);
   } else {
-    // First person: camera at eye level, PointerLockControls handles rotation
+    // First person: camera at eye level
     walkCamera.position.x = avatar.position.x;
     walkCamera.position.z = avatar.position.z;
     walkCamera.position.y = smoothedY + EYE_HEIGHT;
   }
 }
 
-let lastCamTerrainY = 0;
-
 function getTerrainHeightAt(x, z) {
   if (!terrainClone) return 0;
 
-  // Reuse origin vector
   raycastOrigin.set(x, 10000, z);
   raycaster.set(raycastOrigin, downDir);
   const intersects = raycaster.intersectObject(terrainClone, false);
@@ -430,7 +436,6 @@ function getTerrainHeightAt(x, z) {
     return intersects[0].point.y;
   }
 
-  // Fallback: nearest vertex (only if raycast missed)
   if (terrainClone.geometry?.attributes?.position) {
     const pos = terrainClone.geometry.attributes.position;
     let closestIdx = 0;
