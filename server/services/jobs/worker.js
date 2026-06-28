@@ -108,8 +108,8 @@ async function processTerrainJob(job, setProgress) {
     : createProjectFromJob(job, dem, mesh);
 
   // Send phase 1 result so client can show terrain immediately
+  // Keep status as 'running' with progress 50 — client detects phase via result.phase
   await updateJob(job.id, {
-    status: 'completed',
     progress: 50,
     result: {
       projectId: project.id,

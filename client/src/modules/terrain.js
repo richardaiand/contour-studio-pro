@@ -364,17 +364,16 @@ async function pollJob(jobId, onPhase1) {
       throw new Error(job.error || 'Job failed');
     }
 
+    // Check for phase 1 result while job is still running
+    if (job.status === 'running' && job.result?.phase === 1 && !phase1Done) {
+      phase1Done = true;
+      if (onPhase1) await onPhase1(job.result);
+      setLoading(true, 'Enhancing terrain…');
+      await sleep(1500);
+      continue;
+    }
+
     if (job.status === 'completed' && job.result) {
-      if (job.result.phase === 1 && !phase1Done) {
-        // Phase 1 complete — show initial terrain immediately
-        phase1Done = true;
-        if (onPhase1) await onPhase1(job.result);
-        // Keep polling for phase 2
-        setLoading(true, 'Enhancing terrain…');
-        await sleep(1500);
-        continue;
-      }
-      // Phase 2 complete (or no phases) — return final result
       return job.result;
     }
 
