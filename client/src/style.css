@@ -1216,6 +1216,32 @@ dialog input {
 
 /* ===== V2/V3/V4 Feature Styles ===== */
 
+/* AI badge */
+.ai-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #fff;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  padding: 2px 6px;
+  border-radius: 4px;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+.ai-locked {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.ai-locked-hint {
+  font-size: 11px;
+  color: var(--warning);
+  margin-top: 4px;
+}
+
 /* Walk HUD overlay (on studio canvas) */
 .walk-hud-overlay {
   position: absolute;

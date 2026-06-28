@@ -94,6 +94,28 @@ async function init() {
   // Edit Site button → back to map
   $('editSiteBtn')?.addEventListener('click', () => navigate('map'));
 
+  // ===== AI Key Locking =====
+  // Lock AI-dependent features when no API key is configured
+  store.subscribe((state) => {
+    const hasApiKey = state.settings?.hasApiKey;
+    const mapUploadPanel = $('mapUpload')?.parentElement;
+    if (mapUploadPanel) {
+      if (hasApiKey) {
+        mapUploadPanel.classList.remove('ai-locked');
+        const hint = mapUploadPanel.querySelector('.ai-locked-hint');
+        if (hint) hint.remove();
+      } else {
+        mapUploadPanel.classList.add('ai-locked');
+        if (!mapUploadPanel.querySelector('.ai-locked-hint')) {
+          const hint = document.createElement('div');
+          hint.className = 'ai-locked-hint';
+          hint.textContent = 'Add an AI API key in Settings to unlock.';
+          mapUploadPanel.appendChild(hint);
+        }
+      }
+    }
+  });
+
   // ===== Environmental Report =====
   $('envReportBtn')?.addEventListener('click', async () => {
     const center = store.get('center');
@@ -251,21 +273,15 @@ async function init() {
   $('saveBtnMap')?.addEventListener('click', manualSave);
   $('saveBtnStudio')?.addEventListener('click', manualSave);
 
-  // Autosave on bounds/center change (debounced)
-  let autosaveTimer = null;
+  // Autosave on bounds/center change (immediate)
   store.subscribe((state) => {
     if (!state.currentProject?.id) return;
-    if (autosaveTimer) clearTimeout(autosaveTimer);
-    autosaveTimer = setTimeout(async () => {
-      if (state.bounds) {
-        try {
-          await api(`/projects/${state.currentProject.id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ bounds: state.bounds, center: state.center }),
-          });
-        } catch {}
-      }
-    }, 3000);
+    if (state.bounds) {
+      api(`/projects/${state.currentProject.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ bounds: state.bounds, center: state.center }),
+      }).catch(() => {});
+    }
   });
 
   // Studio map preview toggle — static tile image

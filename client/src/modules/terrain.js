@@ -31,8 +31,12 @@ export function initTerrain() {
     if (center) {
       const sizeMeters = sizeMetersFromInputs();
       const sizeMeters2 = sizeMeters2FromInputs();
-      const bounds = computeBounds(center, Math.max(sizeMeters, sizeMeters2));
-      store.set({ sizeMeters, sizeMeters2, bounds });
+      store.set({ sizeMeters, sizeMeters2 });
+      // Trigger map selection update instead of computing bounds ourselves
+      // (the map's updateSelection uses rotatedSquare which handles rectangles + rotation correctly)
+      import('./map.js').then(({ setMarker }) => {
+        setMarker(center, true, false);
+      }).catch(() => {});
     }
   };
 

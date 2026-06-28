@@ -31,7 +31,6 @@ let terrainClone = null;
 let terrainBounds = null;
 let onKeyDownRef = null;
 let onKeyUpRef = null;
-let onMouseMoveRef = null;
 let listenersRegistered = false;
 let originalCamera = null;
 let originalControls = null;
@@ -43,7 +42,6 @@ const moveDir = new THREE.Vector3();
 const rightVec = new THREE.Vector3();
 const forwardVec = new THREE.Vector3();
 const avatarForward = new THREE.Vector3();
-const tempEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 let lastTerrainY = 0;
 let lastCamTerrainY = 0;
 
@@ -150,6 +148,11 @@ export function enterWalkMode(startPos = null) {
 
   walkControls.addEventListener('unlock', () => {});
 
+  // Increase mouse sensitivity (PointerLockControls handles mouse natively)
+  if (walkControls.pointerSpeed !== undefined) {
+    walkControls.pointerSpeed = MOUSE_SENSITIVITY;
+  }
+
   if (!listenersRegistered) {
     onKeyDownRef = (e) => {
       if (!isWalking) return;
@@ -173,20 +176,8 @@ export function enterWalkMode(startPos = null) {
       }
     };
 
-    // Custom mouse look with adjustable sensitivity
-    onMouseMoveRef = (e) => {
-      if (!isWalking || !walkControls.isLocked) return;
-      const yaw = -e.movementX * 0.002 * MOUSE_SENSITIVITY;
-      const pitch = -e.movementY * 0.002 * MOUSE_SENSITIVITY;
-      walkControls.getObject().rotation.y += yaw;
-      tempEuler.copy(walkControls.getObject().rotation);
-      tempEuler.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, tempEuler.x + pitch));
-      walkControls.getObject().rotation.copy(tempEuler);
-    };
-
     document.addEventListener('keydown', onKeyDownRef);
     document.addEventListener('keyup', onKeyUpRef);
-    document.addEventListener('mousemove', onMouseMoveRef);
     listenersRegistered = true;
   }
 
@@ -424,20 +415,23 @@ function updateCameraPosition() {
   smoothedY += (targetY - smoothedY) * SMOOTH_FACTOR;
 
   if (thirdPerson) {
-    // Use camera's yaw (set by mouse) to orbit around avatar
-    const camYaw = walkCamera.rotation.y;
-    const camPitch = walkCamera.rotation.x;
+    // Use camera's yaw (managed by PointerLockControls) to orbit around avatar
+    walkCamera.getWorldDirection(forwardVec);
+    forwardVec.y = 0;
+    forwardVec.normalize();
 
-    const offsetX = Math.sin(camYaw) * THIRD_PERSON_DISTANCE;
-    const offsetZ = Math.cos(camYaw) * THIRD_PERSON_DISTANCE;
-    const offsetY = Math.sin(camPitch) * THIRD_PERSON_DISTANCE;
-
-    const camX = avatar.position.x + offsetX;
-    const camZ = avatar.position.z + offsetZ;
-    const camY = smoothedY + THIRD_PERSON_HEIGHT - offsetY;
+    const camX = avatar.position.x - forwardVec.x * THIRD_PERSON_DISTANCE;
+    const camZ = avatar.position.z - forwardVec.z * THIRD_PERSON_DISTANCE;
+    const camY = smoothedY + THIRD_PERSON_HEIGHT;
 
     walkCamera.position.set(camX, camY, camZ);
-    walkCamera.lookAt(avatar.position.x, smoothedY + 1.2, avatar.position.z);
+    // Look at avatar from behind — preserves yaw, sets pitch to look down slightly
+    const lookTarget = new THREE.Vector3(avatar.position.x, smoothedY + 1.2, avatar.position.z);
+    // Save current yaw, use lookAt for position, then restore yaw for next frame
+    const savedRotation = walkCamera.rotation.clone();
+    walkCamera.lookAt(lookTarget);
+    // Keep the yaw from mouse control, only use lookAt for pitch
+    walkCamera.rotation.y = savedRotation.y;
   } else {
     // First person: camera at eye level
     walkCamera.position.x = avatar.position.x;
