@@ -232,7 +232,7 @@ async function generateTerrain() {
   }
 
   store.set({ isGenerating: true });
-  setLoading(true, 'Queueing terrain generation…');
+  setLoading(true, 'Generating terrain…');
   document.querySelectorAll('.exports button').forEach((b) => (b.disabled = true));
   const genBtn = $('generateBtn');
   if (genBtn) genBtn.disabled = true;
@@ -272,8 +272,13 @@ async function generateTerrain() {
     requestAnimationFrame(() => {
       setTimeout(() => {
         setTerrain(data.mesh, rotation);
-        if (data.originalBounds && data.fetchBounds) {
+        if (data.wasExpanded && data.originalBounds && data.fetchBounds) {
           drawSelectionOutline(data.originalBounds, data.fetchBounds);
+          const disclaimer = document.getElementById('expandedDisclaimer');
+          if (disclaimer) disclaimer.classList.remove('hidden');
+        } else {
+          const disclaimer = document.getElementById('expandedDisclaimer');
+          if (disclaimer) disclaimer.classList.add('hidden');
         }
         updateStats(data);
         setTimeout(async () => {
@@ -318,6 +323,7 @@ async function generateTerrain() {
     } catch {}
   } catch (e) {
     setLoading(false);
+    console.error('Generation failed:', e);
     setStatus('Generation failed: ' + e.message, 'error');
   } finally {
     store.set({ isGenerating: false });
@@ -553,7 +559,7 @@ function loadVersion(version) {
   const rotation = store.get('rotation') || 0;
   store.set({ currentTerrain: version });
   setTerrain(version.mesh, rotation);
-  if (version.originalBounds && version.fetchBounds) {
+  if (version.wasExpanded && version.originalBounds && version.fetchBounds) {
     drawSelectionOutline(version.originalBounds, version.fetchBounds);
   }
   updateStats(version);

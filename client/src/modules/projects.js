@@ -45,7 +45,7 @@ export async function selectProject(project) {
             const rotation = store.get('rotation') || 0;
             triggerResize();
             setTerrain(data.project.terrainData.mesh, rotation);
-            if (data.project.terrainData.originalBounds && data.project.terrainData.fetchBounds) {
+            if (data.project.terrainData.wasExpanded && data.project.terrainData.originalBounds && data.project.terrainData.fetchBounds) {
               drawSelectionOutline(data.project.terrainData.originalBounds, data.project.terrainData.fetchBounds);
             }
             const stats = document.getElementById('stats');

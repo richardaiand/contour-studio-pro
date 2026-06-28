@@ -424,15 +424,17 @@ function updateCameraPosition() {
   smoothedY += (targetY - smoothedY) * SMOOTH_FACTOR;
 
   if (thirdPerson) {
-    // Camera behind avatar based on camera's own yaw (not avatar rotation)
-    // This way mouse look rotates the camera around the avatar
-    walkCamera.getWorldDirection(forwardVec);
-    forwardVec.y = 0;
-    forwardVec.normalize();
+    // Use camera's yaw (set by mouse) to orbit around avatar
+    const camYaw = walkCamera.rotation.y;
+    const camPitch = walkCamera.rotation.x;
 
-    const camX = avatar.position.x - forwardVec.x * THIRD_PERSON_DISTANCE;
-    const camZ = avatar.position.z - forwardVec.z * THIRD_PERSON_DISTANCE;
-    const camY = smoothedY + THIRD_PERSON_HEIGHT;
+    const offsetX = Math.sin(camYaw) * THIRD_PERSON_DISTANCE;
+    const offsetZ = Math.cos(camYaw) * THIRD_PERSON_DISTANCE;
+    const offsetY = Math.sin(camPitch) * THIRD_PERSON_DISTANCE;
+
+    const camX = avatar.position.x + offsetX;
+    const camZ = avatar.position.z + offsetZ;
+    const camY = smoothedY + THIRD_PERSON_HEIGHT - offsetY;
 
     walkCamera.position.set(camX, camY, camZ);
     walkCamera.lookAt(avatar.position.x, smoothedY + 1.2, avatar.position.z);
