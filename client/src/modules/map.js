@@ -28,9 +28,7 @@ export function initMap() {
         osm: {
           type: 'raster',
           tiles: [
-            'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           ],
           tileSize: 256,
           attribution: '© OpenStreetMap contributors',
@@ -42,14 +40,14 @@ export function initMap() {
           type: 'raster',
           source: 'osm',
           minzoom: 0,
-          maxzoom: 19,
+          maxzoom: 18,
         },
       ],
     },
     center: [-98.5795, 39.8283],
     zoom: 3,
     minZoom: 2,
-    maxZoom: 19,
+    maxZoom: 18,
     renderWorldCopies: false,
     scrollZoom: { smooth: true, speed: 0.6 },
     touchZoomRotate: true,
@@ -308,7 +306,7 @@ export function setMarker(center, updateStore = true, shouldZoom = true) {
           [bounds.minLon, bounds.minLat],
           [bounds.maxLon, bounds.maxLat],
         ],
-        { padding: proportionalPadding(), maxZoom: 19, duration: 600 }
+        { padding: proportionalPadding(), maxZoom: 18, duration: 600 }
       );
     }
   }
