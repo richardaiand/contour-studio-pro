@@ -47,6 +47,11 @@ export async function selectProject(project) {
             setTerrain(data.project.terrainData.mesh, rotation);
             if (data.project.terrainData.wasExpanded && data.project.terrainData.originalBounds && data.project.terrainData.fetchBounds) {
               drawSelectionOutline(data.project.terrainData.originalBounds, data.project.terrainData.fetchBounds);
+              const disclaimer = document.getElementById('expandedDisclaimer');
+              if (disclaimer) disclaimer.classList.remove('hidden');
+            } else {
+              const disclaimer = document.getElementById('expandedDisclaimer');
+              if (disclaimer) disclaimer.classList.add('hidden');
             }
             const stats = document.getElementById('stats');
             if (stats) {

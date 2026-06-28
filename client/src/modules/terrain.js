@@ -32,10 +32,11 @@ export function initTerrain() {
       const sizeMeters = sizeMetersFromInputs();
       const sizeMeters2 = sizeMeters2FromInputs();
       store.set({ sizeMeters, sizeMeters2 });
-      // Trigger map selection update instead of computing bounds ourselves
-      // (the map's updateSelection uses rotatedSquare which handles rectangles + rotation correctly)
+      // Update map selection with new size (don't create a new marker)
       import('./map.js').then(({ setMarker }) => {
-        setMarker(center, true, false);
+        if (store.get('center')) {
+          setMarker(store.get('center'), true, false);
+        }
       }).catch(() => {});
     }
   };
@@ -584,6 +585,11 @@ function loadVersion(version) {
   setTerrain(version.mesh, rotation);
   if (version.wasExpanded && version.originalBounds && version.fetchBounds) {
     drawSelectionOutline(version.originalBounds, version.fetchBounds);
+    const disclaimer = document.getElementById('expandedDisclaimer');
+    if (disclaimer) disclaimer.classList.remove('hidden');
+  } else {
+    const disclaimer = document.getElementById('expandedDisclaimer');
+    if (disclaimer) disclaimer.classList.add('hidden');
   }
   updateStats(version);
   const versions = store.get('currentProject')?.terrainVersions || [];

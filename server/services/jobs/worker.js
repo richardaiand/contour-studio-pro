@@ -201,7 +201,7 @@ async function processTerrainJob(job, setProgress) {
     enhancedMesh.colors = enhancedCleaned.colors;
 
     // Update project with enhanced version
-    updateProjectTerrain
+    updateProjectTerrain(project.id, dem, enhancedMesh);
 
     // Update job with phase 2 result
     await updateJob(job.id, {
@@ -239,8 +239,9 @@ async function processTerrainJob(job, setProgress) {
       },
     });
   } else {
-    // No enhancement — just update progress to 100
+    // No enhancement — just mark as completed
     await updateJob(job.id, {
+      status: 'completed',
       progress: 100,
       result: {
         projectId: project.id,
