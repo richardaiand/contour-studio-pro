@@ -345,7 +345,7 @@ async function init() {
     }
     $('projectNameError').textContent = '';
     $('projectNameDlg')?.close();
-    store.set({ currentProject: { title: name, isNew: true } });
+    store.set({ currentProject: { title: name, isNew: true }, currentTerrain: null, bounds: null, center: null, rotation: 0 });
     $('projectNameInput').value = '';
     navigate('map');
   });

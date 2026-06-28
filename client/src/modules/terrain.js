@@ -89,7 +89,7 @@ export function initTerrain() {
     const hasTerrain = !!state.currentTerrain;
     document.querySelectorAll('.exports button').forEach((b) => (b.disabled = !hasTerrain));
     const genBtn = $('generateBtn');
-    if (genBtn) genBtn.disabled = !state.bounds;
+    if (genBtn) genBtn.disabled = !state.bounds || state.isGenerating;
   });
 }
 
@@ -224,6 +224,8 @@ function debounce(fn, ms) {
 }
 
 async function generateTerrain() {
+  if (store.get('isGenerating')) return;
+
   const bounds = store.get('bounds');
   if (!bounds) {
     setStatus('Search for a location first.', 'error');
