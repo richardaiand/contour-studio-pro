@@ -10,7 +10,6 @@ import { initTerrain } from './modules/terrain.js';
 import { initRouter, setInitialView, navigate, getCurrentView } from './router.js';
 import { startWalkthrough, shouldShowWalkthrough } from './modules/walkthrough.js';
 import { initEnvironment, loadEnvironmentalReport } from './modules/environment.js';
-import { loadUtilities, renderUtilityPipes, clearUtilityPipes } from './modules/utilities.js';
 import { initWalkMode, enterWalkMode, exitWalkMode, isWalkMode, toggleCameraMode } from './modules/walk-mode.js';
 
 async function init() {
@@ -131,54 +130,6 @@ async function init() {
       if (btn) { btn.disabled = false; btn.textContent = 'Generate Site Report'; }
     }
   });
-
-  // ===== Utility Overlays =====
-  let activeUtilityTypes = new Set();
-  async function toggleUtility(type) {
-    const bounds = store.get('bounds');
-    const terrain = store.get('currentTerrain');
-    const mesh = getTerrainMesh();
-    if (!bounds || !mesh || !terrain) {
-      setStatus('Generate terrain first to show utilities.', 'error');
-      return;
-    }
-
-    const fetchBounds = terrain.fetchBounds || terrain.originalBounds || bounds;
-
-    if (activeUtilityTypes.has(type)) {
-      activeUtilityTypes.delete(type);
-      const btn = type === 'sewer' ? $('toggleSewerBtn') : $('toggleWaterBtn');
-      if (btn) btn.classList.remove('active');
-      const scene = getScene();
-      clearUtilityPipes(scene);
-      for (const remaining of activeUtilityTypes) {
-        await loadAndRenderUtilities(remaining, fetchBounds, mesh);
-      }
-    } else {
-      activeUtilityTypes.add(type);
-      const btn = type === 'sewer' ? $('toggleSewerBtn') : $('toggleWaterBtn');
-      if (btn) btn.classList.add('active');
-      await loadAndRenderUtilities(type, fetchBounds, mesh);
-    }
-  }
-
-  async function loadAndRenderUtilities(type, bounds, mesh) {
-    const scene = getScene();
-    try {
-      const data = await loadUtilities(bounds, type);
-      if (data.features && data.features.length > 0) {
-        renderUtilityPipes(scene, data.features, mesh, bounds);
-        setStatus(`Loaded ${data.features.length} ${type} features.`, 'ok');
-      } else {
-        setStatus(`No ${type} data found for this area.`, '');
-      }
-    } catch (e) {
-      setStatus(`Failed to load ${type} data: ${e.message}`, 'error');
-    }
-  }
-
-  $('toggleSewerBtn')?.addEventListener('click', () => toggleUtility('sewer'));
-  $('toggleWaterBtn')?.addEventListener('click', () => toggleUtility('water'));
 
   // ===== Walk Mode =====
   $('enterWalkBtn')?.addEventListener('click', () => {

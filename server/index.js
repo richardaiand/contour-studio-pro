@@ -18,7 +18,6 @@ import chatRoutes from './routes/chat.js';
 import jobRoutes from './routes/jobs.js';
 import mapRoutes from './routes/maps.js';
 import providerRoutes from './routes/providers.js';
-import utilityRoutes from './routes/utilities.js';
 import environmentRoutes from './routes/environment.js';
 import { startWorker } from './services/jobs/worker.js';
 
@@ -64,7 +63,6 @@ async function buildServer() {
   await fastify.register(jobRoutes, { prefix: '/api/jobs' });
   await fastify.register(mapRoutes, { prefix: '/api/maps' });
   await fastify.register(providerRoutes, { prefix: '/api/providers' });
-  await fastify.register(utilityRoutes, { prefix: '/api/utilities' });
   await fastify.register(environmentRoutes, { prefix: '/api/environment' });
 
   // Health check
