@@ -5,7 +5,7 @@ import { claimPendingJob, updateJob } from './db.js';
 import { fetchDemForBounds, selectSourceDescription } from '../dem/router.js';
 import { gridToMesh } from '../terrain/mesh.js';
 import { cleanupMesh } from '../terrain/cleanup.js';
-import { createProjectFromJob, updateProjectFromJob, updateProjectTerrain } from '../projects/db.js';
+import { createProjectFromJob, updateProjectFromJob } from '../projects/db.js';
 import { fetchTnmDem, fetchTopoMapUrl } from '../topo/tnm.js';
 import { mergeGrids } from '../topo/merger.js';
 import { enhanceWithTopoMap } from '../topo/hybrid.js';
@@ -82,55 +82,20 @@ async function runJob(job) {
 async function processTerrainJob(job, setProgress) {
   const { bounds, detailLevel = 'standard', verticalExaggeration = 1.5 } = job.payload;
 
-  // ===== PHASE 1: Basic DEM + mesh (fast, show to user immediately) =====
   setProgress(10);
   const dem = await fetchDemForBounds(bounds, detailLevel);
 
-  setProgress(25);
+  setProgress(30);
   if (!dem.grid || dem.grid.length === 0) {
     throw new Error('DEM grid was empty');
   }
 
-  const meshBounds = dem.fetchBounds || bounds;
-  const mesh = gridToMesh(dem.grid, meshBounds, { verticalExaggeration });
-
-  const cleaned = cleanupMesh(mesh.positions, mesh.normals, mesh.indices, mesh.uvs, mesh.colors);
-  mesh.positions = cleaned.positions;
-  mesh.normals = cleaned.normals;
-  mesh.indices = cleaned.indices;
-  mesh.uvs = cleaned.uvs;
-  mesh.colors = cleaned.colors;
-
-  // Save initial version to project
-  setProgress(45);
-  const project = job.payload.projectId
-    ? updateProjectFromJob(job.payload.projectId, job, dem, mesh)
-    : createProjectFromJob(job, dem, mesh);
-
-  // Phase 1 result — metadata only, no mesh data (client fetches from project endpoint)
-  await updateJob(job.id, {
-    progress: 50,
-    result: {
-      projectId: project.id,
-      projectTitle: project.title,
-      detailLevel,
-      resolutionMeters: dem.resolutionMeters,
-      sources: dem.sources,
-      sourceDescription: selectSourceDescription(dem.sources, detailLevel),
-      wasExpanded: dem.wasExpanded || false,
-      originalBounds: dem.originalBounds || bounds,
-      fetchBounds: dem.fetchBounds || bounds,
-      phase: 1,
-    },
-  });
-
-  // ===== PHASE 2: Enhancement (TNM + AI hybrid, run in background) =====
+  // Enhancement (US only)
   let topoMapInfo = null;
-  let enhanced = false;
-
   if (bounds.minLat >= 24 && bounds.maxLat <= 50 && bounds.minLon >= -125 && bounds.maxLon <= -66) {
     try {
-      setProgress(60);
+      setProgress(40);
+      const meshBounds = dem.fetchBounds || bounds;
       const targetSize = dem.grid.length;
       const tnmData = await fetchTnmDem(meshBounds, targetSize);
       if (tnmData && tnmData.grid && tnmData.grid.length > 0) {
@@ -140,7 +105,6 @@ async function processTerrainJob(job, setProgress) {
         }
         dem.sources = [...new Set([...(dem.sources || []), 'usgs-tnm'])];
         dem.attribution += '; ' + tnmData.attribution;
-        enhanced = true;
         console.log(`TNM enhancement: merged ${tnmData.width}x${tnmData.height} grid at ${tnmData.resolutionMeters}m resolution`);
       }
     } catch (err) {
@@ -148,12 +112,12 @@ async function processTerrainJob(job, setProgress) {
     }
 
     try {
-      setProgress(75);
+      setProgress(55);
+      const meshBounds = dem.fetchBounds || bounds;
       const hybridResult = await enhanceWithTopoMap(bounds, dem.grid, meshBounds, job.userId);
       if (hybridResult) {
         if (hybridResult.grid) {
           dem.grid = hybridResult.grid;
-          enhanced = true;
         }
         topoMapInfo = hybridResult.topoMap;
         dem.sources = [...new Set([...(dem.sources || []), 'ai-topo-hybrid'])];
@@ -169,20 +133,22 @@ async function processTerrainJob(job, setProgress) {
     }
   }
 
-  if (enhanced) {
-    setProgress(90);
-    const enhancedMesh = gridToMesh(dem.grid, meshBounds, { verticalExaggeration });
-    const enhancedCleaned = cleanupMesh(enhancedMesh.positions, enhancedMesh.normals, enhancedMesh.indices, enhancedMesh.uvs, enhancedMesh.colors);
-    enhancedMesh.positions = enhancedCleaned.positions;
-    enhancedMesh.normals = enhancedCleaned.normals;
-    enhancedMesh.indices = enhancedCleaned.indices;
-    enhancedMesh.uvs = enhancedCleaned.uvs;
-    enhancedMesh.colors = enhancedCleaned.colors;
+  setProgress(70);
+  const meshBounds = dem.fetchBounds || bounds;
+  const mesh = gridToMesh(dem.grid, meshBounds, { verticalExaggeration });
 
-    updateProjectTerrain(project.id, dem, enhancedMesh);
-  }
+  const cleaned = cleanupMesh(mesh.positions, mesh.normals, mesh.indices, mesh.uvs, mesh.colors);
+  mesh.positions = cleaned.positions;
+  mesh.normals = cleaned.normals;
+  mesh.indices = cleaned.indices;
+  mesh.uvs = cleaned.uvs;
+  mesh.colors = cleaned.colors;
 
-  // Phase 2 result — metadata only, client fetches mesh from project endpoint
+  setProgress(90);
+  const project = job.payload.projectId
+    ? updateProjectFromJob(job.payload.projectId, job, dem, mesh)
+    : createProjectFromJob(job, dem, mesh);
+
   await updateJob(job.id, {
     status: 'completed',
     progress: 100,
@@ -191,13 +157,28 @@ async function processTerrainJob(job, setProgress) {
       projectTitle: project.title,
       detailLevel,
       resolutionMeters: dem.resolutionMeters,
+      minElevation: mesh.minElevation,
+      maxElevation: mesh.maxElevation,
+      verticalExaggeration,
       sources: dem.sources,
       sourceDescription: selectSourceDescription(dem.sources, detailLevel),
+      attribution: dem.attribution,
       wasExpanded: dem.wasExpanded || false,
+      expansionNote: dem.expansionNote || null,
       originalBounds: dem.originalBounds || bounds,
       fetchBounds: dem.fetchBounds || bounds,
       topoMap: topoMapInfo,
-      phase: 2,
+      mesh: {
+        width: mesh.width,
+        height: mesh.height,
+        positions: mesh.positions,
+        normals: mesh.normals,
+        uvs: mesh.uvs,
+        colors: mesh.colors,
+        indices: mesh.indices,
+        minElevation: mesh.minElevation,
+        maxElevation: mesh.maxElevation,
+      },
     },
   });
 }
