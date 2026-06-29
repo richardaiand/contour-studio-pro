@@ -489,11 +489,15 @@ async function exportTerrain(format) {
 
   try {
     const filename = $('filename').value.trim() || 'terrain';
+    const projectId = terrain.projectId;
+    if (!projectId) {
+      throw new Error('No project ID for export');
+    }
     const res = await fetch('/api/terrain/export', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mesh: terrain.mesh, format, filename, projectId: terrain.projectId }),
+      body: JSON.stringify({ format, filename, projectId }),
     });
 
     if (!res.ok) {

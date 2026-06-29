@@ -2,6 +2,7 @@ import { fetchDemForBounds, selectSourceDescription, DETAIL_CONFIG } from '../se
 import { gridToMesh } from '../services/terrain/mesh.js';
 import { exportMesh } from '../services/terrain/exporter.js';
 import { recordExport } from '../services/projects/db.js';
+import { getDb } from '../db.js';
 import { AppError } from '../errors.js';
 
 export default async function (fastify) {
@@ -68,15 +69,14 @@ export default async function (fastify) {
     };
   });
 
-  // Export terrain mesh
+  // Export terrain mesh — fetch from project DB instead of client
   fastify.post('/export', {
     onRequest: [fastify.authenticate],
     schema: {
       body: {
         type: 'object',
-        required: ['mesh', 'format'],
+        required: ['format', 'projectId'],
         properties: {
-          mesh: { type: 'object' },
           format: { type: 'string', enum: ['obj', 'stl', 'heightmap'] },
           filename: { type: 'string' },
           projectId: { type: 'string' },
@@ -85,7 +85,26 @@ export default async function (fastify) {
     },
   }, async (req, reply) => {
     try {
-      const { mesh, format, filename = 'terrain', projectId } = req.body;
+      const { format, filename = 'terrain', projectId } = req.body;
+
+      // Fetch terrain data from project
+      const db = getDb();
+      const row = db.prepare('SELECT terrain_data_json FROM projects WHERE id = ? AND user_id = ?').get(projectId, req.user.userId);
+      if (!row || !row.terrain_data_json) {
+        throw new AppError('Project terrain not found', 404, 'NOT_FOUND');
+      }
+
+      const terrainData = JSON.parse(row.terrain_data_json);
+      const mesh = terrainData.mesh;
+      if (!mesh) {
+        throw new AppError('No mesh data in project', 404, 'NOT_FOUND');
+      }
+
+      // Add grid from terrainData if available (needed for heightmap)
+      if (terrainData.mesh.grid) mesh.grid = terrainData.mesh.grid;
+      if (terrainData.minElevation !== undefined) mesh.minElevation = terrainData.minElevation;
+      if (terrainData.maxElevation !== undefined) mesh.maxElevation = terrainData.maxElevation;
+
       req.log.info({ format, meshSize: mesh.positions?.length, hasGrid: !!mesh.grid }, 'Export request');
       const result = exportMesh(mesh, format, filename);
 
@@ -104,6 +123,7 @@ export default async function (fastify) {
       reply.header('Content-Type', result.type);
       return reply.send(result.data);
     } catch (err) {
+      if (err instanceof AppError) throw err;
       req.log.error({ err: err.message, stack: err.stack }, 'Export failed');
       throw new AppError('Export failed: ' + err.message, 500, 'EXPORT_ERROR');
     }

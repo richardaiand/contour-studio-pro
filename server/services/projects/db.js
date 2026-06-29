@@ -113,6 +113,7 @@ function buildTerrainData(dem, mesh, payload) {
     mesh: {
       width: mesh.width,
       height: mesh.height,
+      grid: mesh.grid,
       positions: mesh.positions,
       normals: mesh.normals,
       uvs: mesh.uvs,
