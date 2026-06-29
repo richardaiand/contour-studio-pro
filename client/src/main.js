@@ -95,23 +95,31 @@ async function init() {
 
   // ===== AI Key Locking =====
   // Lock AI-dependent features when no API key is configured
-  store.subscribe((state) => {
-    const hasApiKey = state.settings?.hasApiKey;
+  function updateAILock(hasApiKey) {
+    const analyzeBtn = $('analyzeBtn');
     const mapUploadPanel = $('mapUpload')?.parentElement;
-    if (mapUploadPanel) {
-      if (hasApiKey) {
-        mapUploadPanel.classList.remove('ai-locked');
-        const hint = mapUploadPanel.querySelector('.ai-locked-hint');
-        if (hint) hint.remove();
-      } else {
-        mapUploadPanel.classList.add('ai-locked');
-        if (!mapUploadPanel.querySelector('.ai-locked-hint')) {
-          const hint = document.createElement('div');
-          hint.className = 'ai-locked-hint';
-          hint.textContent = 'Add an AI API key in Settings to unlock.';
-          mapUploadPanel.appendChild(hint);
-        }
+    if (!mapUploadPanel) return;
+    if (hasApiKey) {
+      mapUploadPanel.classList.remove('ai-locked');
+      if (analyzeBtn) analyzeBtn.disabled = false;
+      const hint = mapUploadPanel.querySelector('.ai-locked-hint');
+      if (hint) hint.remove();
+    } else {
+      mapUploadPanel.classList.add('ai-locked');
+      if (analyzeBtn) analyzeBtn.disabled = true;
+      if (!mapUploadPanel.querySelector('.ai-locked-hint')) {
+        const hint = document.createElement('div');
+        hint.className = 'ai-locked-hint';
+        hint.textContent = 'Add an AI API key in Settings to unlock.';
+        mapUploadPanel.appendChild(hint);
       }
+    }
+  }
+
+  // Check on settings changes
+  store.subscribe((state) => {
+    if (state.settings) {
+      updateAILock(state.settings.hasApiKey);
     }
   });
 

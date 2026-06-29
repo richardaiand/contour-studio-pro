@@ -84,6 +84,7 @@ export function initTerrain() {
   });
 
   // Map upload
+  $('analyzeBtn')?.addEventListener('click', () => $('mapUpload')?.click());
   $('mapUpload')?.addEventListener('change', analyzeMapUpload);
 
   store.subscribe((state) => {

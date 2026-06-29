@@ -1234,10 +1234,17 @@ dialog input {
 
 .ai-locked {
   opacity: 0.5;
+}
+
+.ai-locked button {
   pointer-events: none;
 }
 
 .ai-locked-hint {
+  font-size: 11px;
+  color: var(--warning);
+  margin-top: 4px;
+}
   font-size: 11px;
   color: var(--warning);
   margin-top: 4px;
