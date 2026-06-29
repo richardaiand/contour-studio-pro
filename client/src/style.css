@@ -1172,7 +1172,6 @@ dialog input {
   background: rgba(0, 0, 0, 0.7);
   z-index: 9998;
   pointer-events: none;
-  transition: clip-path 0.3s ease;
 }
 
 .walkthrough-tooltip {

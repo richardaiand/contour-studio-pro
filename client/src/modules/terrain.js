@@ -289,6 +289,19 @@ async function generateTerrain() {
           if (disclaimer) disclaimer.classList.add('hidden');
         }
         updateStats(data);
+        // Capture thumbnail for dashboard
+        setTimeout(async () => {
+          const thumb = captureStudioThumbnail();
+          if (thumb && data.projectId) {
+            try {
+              await api(`/projects/${data.projectId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ thumbnail: thumb }),
+              });
+              loadProjects();
+            } catch {}
+          }
+        }, 500);
       }, 100);
     });
     setLoading(false);
@@ -461,7 +474,10 @@ function updateStats(data) {
 
 async function exportTerrain(format) {
   const terrain = store.get('currentTerrain');
-  if (!terrain) return;
+  if (!terrain || !terrain.mesh) {
+    setStatus('No terrain to export. Generate terrain first.', 'error');
+    return;
+  }
 
   const progress = document.getElementById('exportProgress');
   const progressText = document.getElementById('exportProgressText');
